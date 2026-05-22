@@ -61,15 +61,17 @@ public class CalculatorApp {
     }
 
     static void calcMenu() {
-            System.out.println("=== Calculator App ===");
-            System.out.println("1. Сложение");
-            System.out.println("2. Вычитание");
-            System.out.println("3. Умножение");
-            System.out.println("4. Деление");
-            System.out.println("5. Остаток от деления");
-            System.out.println("6. Показать историю");
-            System.out.println("0. Выход");
-            System.out.println("Выберите операцию: ");
+            System.out.println("=== Calculator App === \n\n" +
+                    "1. Сложение\n" +
+                    "2. Вычитание\n" +
+                    "3. Умножение\n" +
+                    "4. Деление\n" +
+                    "5. Остаток от деления\n" +
+                    "6. Показать историю\n" +
+                    "0. Выход\n\n" +
+                    "Выберите операцию: ");
+
+
     }
 
     static double add(double a, double b) {
