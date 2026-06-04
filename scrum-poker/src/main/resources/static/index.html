@@ -4,60 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scrum Poker</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
 <body>
-<div id="app">
-    <!-- Экран входа -->
-    <section id="lobby" class="card">
-        <h1>🃏 Scrum Poker</h1>
-        <label>Ваше имя
-            <input id="nameInput" type="text" maxlength="40" placeholder="Имя">
+
+<!-- ===== Лобби ===== -->
+<main id="lobby" class="lobby">
+    <div class="lobby-card">
+        <div class="brand"><span class="brand-icon">🃏</span> Scrum&nbsp;Poker</div>
+        <p id="lobbySub" class="lobby-sub">Оценка задач командой в реальном времени</p>
+
+        <label class="field">
+            <span>Ваше имя</span>
+            <input id="nameInput" type="text" maxlength="40" placeholder="Например, Алиса" autocomplete="off">
         </label>
-        <label>Роль
+
+        <label class="field" id="roleField">
+            <span>Роль</span>
             <select id="roleSelect">
-                <option value="PLAYER">Участник</option>
+                <option value="PLAYER">Участник (голосует)</option>
                 <option value="OBSERVER">Наблюдатель</option>
             </select>
         </label>
-        <div class="row">
-            <button id="createBtn">Создать комнату</button>
-        </div>
-        <p class="hint">Чтобы присоединиться к существующей комнате — откройте присланную ссылку.</p>
-        <p id="lobbyError" class="error"></p>
-    </section>
 
-    <!-- Экран комнаты -->
-    <section id="room" class="hidden">
-        <header class="room-header">
+        <label class="field" id="deckField">
+            <span>Колода</span>
+            <select id="deckSelect">
+                <option value="FIBONACCI">Фибоначчи · 0 1 2 3 5 8 13 21</option>
+                <option value="POWERS_OF_TWO">Степени двойки · 1 2 4 8 16 32</option>
+                <option value="TSHIRT">Майки · XS S M L XL</option>
+            </select>
+        </label>
+
+        <button id="primaryBtn" class="btn btn-primary btn-block">Создать комнату</button>
+        <p id="lobbyError" class="form-error"></p>
+    </div>
+    <footer class="lobby-foot">До 100 участников в комнате · без регистрации</footer>
+</main>
+
+<!-- ===== Комната ===== -->
+<div id="room" class="room hidden">
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="brand-icon">🃏</span>
             <div>
-                <h2 id="roomName"></h2>
-                <span id="storyLabel" class="story"></span>
+                <h1 id="roomName" class="room-title">Комната</h1>
+                <div id="storyLabel" class="room-story">Задача не задана</div>
             </div>
-            <div class="share">
-                <button id="copyLinkBtn">🔗 Скопировать ссылку</button>
-                <span id="onlineCount" class="badge"></span>
-            </div>
-        </header>
-
-        <div id="moderatorPanel" class="moderator hidden">
-            <input id="storyInput" type="text" placeholder="Задача для оценки...">
-            <button id="setStoryBtn">Задать</button>
-            <button id="revealBtn">Вскрыть карты</button>
-            <button id="resetBtn">Новый раунд</button>
         </div>
+        <div class="topbar-right">
+            <span id="connDot" class="conn-dot" title="Соединение"></span>
+            <span id="onlineCount" class="pill">👥 0</span>
+            <button id="copyLinkBtn" class="btn btn-ghost">🔗 Пригласить</button>
+        </div>
+    </header>
 
-        <div id="table" class="table"></div>
-
-        <div id="stats" class="stats hidden"></div>
-
-        <div id="deck" class="deck"></div>
-
-        <p id="roomError" class="error"></p>
+    <section id="moderatorPanel" class="mod-panel hidden">
+        <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)">
+        <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
+        <span class="mod-spacer"></span>
+        <button id="revealBtn" class="btn btn-success">Вскрыть карты</button>
+        <button id="resetBtn" class="btn btn-secondary">Новый раунд</button>
     </section>
+
+    <section class="stage">
+        <div id="table" class="table"></div>
+        <div id="results" class="results hidden"></div>
+        <div id="waitHint" class="wait-hint"></div>
+    </section>
+
+    <footer id="deckBar" class="deckbar">
+        <div id="deck" class="deck"></div>
+        <p id="deckHint" class="deck-hint">Выберите карту</p>
+    </footer>
 </div>
-<script src="app.js"></script>
+
+<div id="toast" class="toast"></div>
+
+<script src="app.js?v=2"></script>
 </body>
 </html>
