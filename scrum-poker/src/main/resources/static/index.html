@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrum Poker</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <!-- Экран входа -->
+    <section id="lobby" class="card">
+        <h1>🃏 Scrum Poker</h1>
+        <label>Ваше имя
+            <input id="nameInput" type="text" maxlength="40" placeholder="Имя">
+        </label>
+        <label>Роль
+            <select id="roleSelect">
+                <option value="PLAYER">Участник</option>
+                <option value="OBSERVER">Наблюдатель</option>
+            </select>
+        </label>
+        <div class="row">
+            <button id="createBtn">Создать комнату</button>
+        </div>
+        <p class="hint">Чтобы присоединиться к существующей комнате — откройте присланную ссылку.</p>
+        <p id="lobbyError" class="error"></p>
+    </section>
+
+    <!-- Экран комнаты -->
+    <section id="room" class="hidden">
+        <header class="room-header">
+            <div>
+                <h2 id="roomName"></h2>
+                <span id="storyLabel" class="story"></span>
+            </div>
+            <div class="share">
+                <button id="copyLinkBtn">🔗 Скопировать ссылку</button>
+                <span id="onlineCount" class="badge"></span>
+            </div>
+        </header>
+
+        <div id="moderatorPanel" class="moderator hidden">
+            <input id="storyInput" type="text" placeholder="Задача для оценки...">
+            <button id="setStoryBtn">Задать</button>
+            <button id="revealBtn">Вскрыть карты</button>
+            <button id="resetBtn">Новый раунд</button>
+        </div>
+
+        <div id="table" class="table"></div>
+
+        <div id="stats" class="stats hidden"></div>
+
+        <div id="deck" class="deck"></div>
+
+        <p id="roomError" class="error"></p>
+    </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
