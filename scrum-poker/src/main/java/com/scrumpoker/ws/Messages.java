@@ -8,5 +8,6 @@ public final class Messages {
     public record VoteMessage(String participantId, String value) {}
     public record ModeratorAction(String participantId) {} // отправитель, для проверки прав
     public record SetStoryMessage(String participantId, String story) {}
+    public record SetDeckMessage(String participantId, String deck) {}
     public record KickMessage(String participantId, String targetId) {}
 }

@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
@@ -15,7 +15,7 @@
 <!-- ===== Лобби ===== -->
 <main id="lobby" class="lobby">
     <div class="lobby-card">
-        <div class="brand"><span class="brand-icon">🃏</span> Scrum&nbsp;Poker</div>
+        <div class="brand">Scrum&nbsp;Poker</div>
         <p id="lobbySub" class="lobby-sub">Оценка задач командой в реальном времени</p>
 
         <label class="field">
@@ -23,7 +23,7 @@
             <input id="nameInput" type="text" maxlength="40" placeholder="Например, Алиса" autocomplete="off">
         </label>
 
-        <label class="field" id="roleField">
+        <label class="field hidden" id="roleField">
             <span>Роль</span>
             <select id="roleSelect">
                 <option value="PLAYER">Участник (голосует)</option>
@@ -50,7 +50,6 @@
 <div id="room" class="room hidden">
     <header class="topbar">
         <div class="topbar-left">
-            <span class="brand-icon">🃏</span>
             <div>
                 <h1 id="roomName" class="room-title">Комната</h1>
                 <div id="storyLabel" class="room-story">Задача не задана</div>
@@ -66,6 +65,11 @@
     <section id="moderatorPanel" class="mod-panel hidden">
         <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)">
         <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
+        <select id="deckChange" class="mod-select" title="Колода">
+            <option value="FIBONACCI">Фибоначчи</option>
+            <option value="POWERS_OF_TWO">Степени двойки</option>
+            <option value="TSHIRT">Майки</option>
+        </select>
         <span class="mod-spacer"></span>
         <button id="revealBtn" class="btn btn-success">Вскрыть карты</button>
         <button id="resetBtn" class="btn btn-secondary">Новый раунд</button>
@@ -85,6 +89,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
