@@ -8,6 +8,7 @@ import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -29,27 +30,27 @@ public class PokerController {
     }
 
     @MessageMapping("/room/{roomId}/join")
-    public void join(@DestinationVariable String roomId,
-                     @Payload Messages.JoinMessage msg,
-                     SimpMessageHeaderAccessor headers) {
+    @SendToUser(destinations = "/queue/me", broadcast = false)
+    public Map<String, String> join(@DestinationVariable String roomId,
+                                    @Payload Messages.JoinMessage msg,
+                                    SimpMessageHeaderAccessor headers) {
         Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null) return;
+        if (room == null) {
+            return Map.of("error", "Комната не найдена");
+        }
 
         Participant.Role role = parseRole(msg.role());
         Participant p;
         try {
             p = roomService.join(room, sanitizeName(msg.name()), role);
         } catch (IllegalStateException full) {
-            sendError(headers.getSessionId(), full.getMessage());
-            return;
+            return Map.of("error", full.getMessage());
         }
 
         sessions.put(headers.getSessionId(), new String[]{roomId, p.getId()});
-        // Сообщаем клиенту его собственный participantId персональным сообщением.
-        messaging.convertAndSendToUser(headers.getSessionId(), "/queue/me",
-                Map.of("participantId", p.getId(), "role", p.getRole().name()),
-                createHeaders(headers.getSessionId()));
         broadcast(room);
+        // Ответ уходит лично подключившемуся клиенту на /user/queue/me.
+        return Map.of("participantId", p.getId(), "role", p.getRole().name());
     }
 
     @MessageMapping("/room/{roomId}/vote")
@@ -114,11 +115,6 @@ public class PokerController {
         messaging.convertAndSend("/topic/room/" + room.getId(), RoomStateDto.from(room));
     }
 
-    private void sendError(String sessionId, String text) {
-        messaging.convertAndSendToUser(sessionId, "/queue/errors",
-                Map.of("error", text), createHeaders(sessionId));
-    }
-
     private boolean isModerator(Room room, String participantId) {
         Participant p = room.getParticipant(participantId);
         return p != null && p.getRole() == Participant.Role.MODERATOR;
@@ -137,12 +133,5 @@ public class PokerController {
         if (name == null || name.isBlank()) return "Аноним";
         String trimmed = name.strip();
         return trimmed.length() > 40 ? trimmed.substring(0, 40) : trimmed;
-    }
-
-    private Map<String, Object> createHeaders(String sessionId) {
-        SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
-        accessor.setSessionId(sessionId);
-        accessor.setLeaveMutable(true);
-        return accessor.getMessageHeaders();
     }
 }
