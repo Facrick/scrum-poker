@@ -156,6 +156,18 @@ body {
     outline: none;
 }
 .mod-input:focus { border-color: var(--primary); }
+.mod-select {
+    padding: 9px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+}
+.mod-select:focus { border-color: var(--primary); }
 .mod-spacer { flex: 1; }
 
 /* stage */

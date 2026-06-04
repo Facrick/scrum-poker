@@ -89,6 +89,19 @@ public class PokerController {
         broadcast(room);
     }
 
+    @MessageMapping("/room/{roomId}/deck")
+    public void setDeck(@DestinationVariable String roomId, @Payload Messages.SetDeckMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId()) || msg.deck() == null) return;
+        try {
+            room.setDeck(com.scrumpoker.model.Deck.valueOf(msg.deck().toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            return; // неизвестная колода — игнорируем
+        }
+        room.resetRound(); // прежние голоса не относятся к новой колоде
+        broadcast(room);
+    }
+
     @MessageMapping("/room/{roomId}/kick")
     public void kick(@DestinationVariable String roomId, @Payload Messages.KickMessage msg) {
         Room room = roomService.getRoom(roomId).orElse(null);
