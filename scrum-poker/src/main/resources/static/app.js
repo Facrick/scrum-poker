@@ -51,15 +51,20 @@ function connectAndJoin(name, role) {
         webSocketFactory: () => new SockJS("/ws"),
         reconnectDelay: 3000,
         onConnect: () => {
-            // Персональные сообщения (мой id, ошибки)
+            // Персональный ответ на join: мой id/роль либо ошибка
             stompClient.subscribe("/user/queue/me", (m) => {
                 const body = JSON.parse(m.body);
+                if (body.error) {
+                    showLobbyError(body.error);
+                    $("room").classList.add("hidden");
+                    $("lobby").classList.remove("hidden");
+                    stompClient.deactivate();
+                    return;
+                }
                 myId = body.participantId;
                 myRole = body.role;
                 toggleModeratorPanel();
-            });
-            stompClient.subscribe("/user/queue/errors", (m) => {
-                showRoomError(JSON.parse(m.body).error);
+                renderDeck(currentState || { cards: [], participants: [] });
             });
             // Состояние комнаты
             stompClient.subscribe("/topic/room/" + roomId, (m) => {

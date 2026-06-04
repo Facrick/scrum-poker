@@ -52,8 +52,9 @@ public record RoomStateDto(
     public record StatsDto(Double average, Double median, boolean consensus,
                            Map<String, Long> distribution) {
         static StatsDto compute(Room room) {
+            // В статистику входят все голосующие (модератор и участники), кроме наблюдателей.
             List<Double> numeric = room.getParticipants().stream()
-                    .filter(p -> p.getRole() == Participant.Role.PLAYER)
+                    .filter(p -> p.getRole() != Participant.Role.OBSERVER)
                     .map(Participant::getVote)
                     .filter(v -> v != null)
                     .map(StatsDto::parseNumeric)
@@ -62,7 +63,7 @@ public record RoomStateDto(
                     .toList();
 
             Map<String, Long> distribution = room.getParticipants().stream()
-                    .filter(p -> p.getRole() == Participant.Role.PLAYER && p.getVote() != null)
+                    .filter(p -> p.getRole() != Participant.Role.OBSERVER && p.getVote() != null)
                     .collect(Collectors.groupingBy(Participant::getVote, Collectors.counting()));
 
             Double average = null;
