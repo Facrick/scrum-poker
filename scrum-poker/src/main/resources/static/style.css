@@ -609,6 +609,12 @@ body {
     color: var(--success); /* fallback */
     animation: pop .4s cubic-bezier(.34,1.56,.64,1);
 }
+/* Emoji и многосимвольные значения — не используем gradient-text (ломает цветные emoji) */
+.consensus-hero-value.plain {
+    background: none;
+    -webkit-text-fill-color: var(--success);
+    color: var(--success);
+}
 .consensus-hero-label {
     font-size: 15px;
     font-weight: 700;

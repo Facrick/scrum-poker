@@ -223,6 +223,7 @@ function renderTable(state) {
         } else if (state.revealed && p.vote != null) {
             slot.classList.add("revealed");
             slot.textContent = p.vote;
+            slot.style.fontSize = cardFontSize(p.vote, 28);
         } else if (p.hasVoted) {
             slot.classList.add("voted");
         } else {
@@ -273,6 +274,7 @@ function renderDeck(state) {
             : (myVote === card);
         btn.className = "pcard" + (isSelected ? " selected" : "");
         btn.textContent = card;
+        btn.style.fontSize = cardFontSize(card, 19);
         btn.disabled = state.revealed;
         btn.onclick = () => {
             myVote = card;
@@ -301,8 +303,10 @@ function renderResults(state) {
     // Консенсус — показываем большое число-герой вместо трёх одинаковых метрик
     if (s.consensus) {
         const val = Object.keys(s.distribution)[0];
+        // Emoji и нечисловые значения — класс plain (иначе -webkit-text-fill-color:transparent скрывает emoji)
+        const isPlain = /[^\x00-\x7F]/.test(val) || isNaN(parseFloat(val));
         html += `<div class="consensus-hero">
-            <div class="consensus-hero-value">${escapeHtml(val)}</div>
+            <div class="consensus-hero-value${isPlain ? ' plain' : ''}">${escapeHtml(val)}</div>
             <div class="consensus-hero-label">🎉 Консенсус!</div>
         </div>`;
     } else {
@@ -313,8 +317,14 @@ function renderResults(state) {
         const chips = Object.entries(s.distribution)
             .sort((a, b) => b[1] - a[1])
             .map(([k, v]) => `<span class="chip">${escapeHtml(k)} <b>×${v}</b></span>`).join("");
-        if (chips) html += `<div class="metric"><div class="label">Голоса</div><div class="dist">${chips}</div></div>`;
+        const votesLabel = s.average == null ? "Распределение голосов" : "Голоса";
+        if (chips) html += `<div class="metric"><div class="label">${votesLabel}</div><div class="dist">${chips}</div></div>`;
         html += `</div>`;
+    }
+
+    // Кнопка переголосовать — только при не-консенсусе, только модератору
+    if (myRole === "MODERATOR" && !s.consensus) {
+        html += `<button id="revoteBtn" class="btn btn-ghost btn-sm" style="align-self:center">🔄 Переголосовать</button>`;
     }
 
     // Форма фиксации оценки для модератора
@@ -336,13 +346,20 @@ function renderResults(state) {
     el.innerHTML = html;
 
     if (myRole === "MODERATOR") {
-        $("confirmEstimateBtn").addEventListener("click", () => {
-            const val = $("estimateInput").value.trim();
-            if (val) send("estimate", { participantId: myId, estimate: val });
-        });
-        $("estimateInput").addEventListener("keydown", e => {
-            if (e.key === "Enter") $("confirmEstimateBtn").click();
-        });
+        const revoteBtn = $("revoteBtn");
+        if (revoteBtn) {
+            revoteBtn.addEventListener("click", () => send("reset", { participantId: myId }));
+        }
+        const confirmBtn = $("confirmEstimateBtn");
+        if (confirmBtn) {
+            confirmBtn.addEventListener("click", () => {
+                const val = $("estimateInput").value.trim();
+                if (val) send("estimate", { participantId: myId, estimate: val });
+            });
+            $("estimateInput").addEventListener("keydown", e => {
+                if (e.key === "Enter") confirmBtn.click();
+            });
+        }
     }
 }
 
@@ -529,6 +546,13 @@ function colorFor(str) {
     return `hsl(${h % 360}, 55%, 50%)`;
 }
 function round(n) { return Math.round(n * 10) / 10; }
+/** Подбирает font-size для карточки в зависимости от длины строки (в px). */
+function cardFontSize(val, base) {
+    const len = [...val].length; // корректно считает emoji как 1 символ
+    if (len <= 2) return base + "px";
+    if (len === 3) return Math.round(base * 0.78) + "px";
+    return Math.round(base * 0.65) + "px";
+}
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }

@@ -62,10 +62,11 @@ public class Room {
     public Participant removeParticipant(String id) { return participants.remove(id); }
     public int size() { return participants.size(); }
 
-    /** Сбросить раунд: спрятать карты, очистить голоса и остановить таймер. */
+    /** Сбросить раунд: спрятать карты, очистить голоса, итоговую оценку и остановить таймер. */
     public void resetRound() {
         revealed = false;
         timerStartedAt = null;
+        finalEstimate = null;
         participants.values().forEach(p -> p.setVote(null));
     }
 }
