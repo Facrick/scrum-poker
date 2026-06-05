@@ -257,7 +257,7 @@ function renderResults(state) {
         const current = state.finalEstimate ?? suggestedValue;
         html += `<div class="estimate-form">
             <input id="estimateInput" class="estimate-input" type="text" maxlength="16"
-                   value="${escapeHtml(current)}" placeholder="Итоговая оценка">
+                   value="${escapeHtml(current)}" placeholder="Итоговая оценка" autocomplete="off">
             <button id="confirmEstimateBtn" class="btn btn-success btn-sm">Зафиксировать</button>
         </div>`;
     }

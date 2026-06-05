@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
@@ -20,12 +20,12 @@
 
         <label class="field">
             <span>Ваше имя</span>
-            <input id="nameInput" type="text" maxlength="40" placeholder="Например, Алиса" autocomplete="off">
+            <input id="nameInput" type="text" maxlength="40" placeholder="Например, Алиса" autocomplete="new-password">
         </label>
 
         <label class="field hidden" id="roomNameField">
             <span>Название сессии</span>
-            <input id="roomNameInput" type="text" maxlength="60" placeholder="Например, Спринт 42" autocomplete="off">
+            <input id="roomNameInput" type="text" maxlength="60" placeholder="Например, Спринт 42" autocomplete="new-password">
         </label>
 
         <label class="field hidden" id="roleField">
@@ -59,7 +59,7 @@
     </header>
 
     <section id="moderatorPanel" class="mod-panel hidden">
-        <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)">
+        <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)" autocomplete="off">
         <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
         <select id="deckChange" class="mod-select" title="Колода">
             <option value="FIBONACCI">Фибоначчи</option>
@@ -69,7 +69,7 @@
         </select>
         <div id="customDeckWrap" class="custom-deck-wrap hidden">
             <input id="customCardsInput" type="text" class="mod-input" maxlength="120"
-                   placeholder="1, 2, 4, 8, XL, ? (через запятую)">
+                   placeholder="1, 2, 4, 8, XL, ? (через запятую)" autocomplete="off">
             <button id="applyCustomDeckBtn" class="btn btn-ghost">Применить</button>
         </div>
         <span class="mod-spacer"></span>
@@ -91,6 +91,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
