@@ -366,9 +366,26 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 24px;
     overflow-y: auto;
+    position: relative;
 }
+/* Фоновый «покерный стол» — даёт контекст пустому пространству */
+.stage::before {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(88%, 720px);
+    aspect-ratio: 16 / 8;
+    border-radius: 50%;
+    border: 1px solid rgba(44, 53, 82, .45);
+    background: radial-gradient(ellipse at center, rgba(26,33,56,.35) 0%, transparent 68%);
+    pointer-events: none;
+    z-index: 0;
+}
+.stage > * { position: relative; z-index: 1; }
 
 /* ---- Table of seats ---- */
 .table {
@@ -461,17 +478,24 @@ body {
 /* ---- Results ---- */
 .results {
     display: flex;
-    gap: 28px;
-    flex-wrap: wrap;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    gap: 16px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 20px 28px;
+    padding: 24px 32px 20px;
     box-shadow: var(--shadow);
     width: 100%;
-    max-width: 680px;
+    max-width: 600px;
+}
+/* Row of numeric metrics */
+.results-metrics {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
 }
 .results .metric { text-align: center; }
 .results .metric .label {
@@ -481,23 +505,9 @@ body {
     letter-spacing: .06em;
     font-weight: 600;
 }
-.results .metric .value { font-size: 32px; font-weight: 800; margin-top: 2px; line-height: 1; }
+.results .metric .value { font-size: 30px; font-weight: 800; margin-top: 2px; line-height: 1; }
 
-.results .consensus {
-    color: var(--success);
-    font-weight: 800;
-    font-size: 17px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    animation: pop .4s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes pop {
-    from { transform: scale(.7); opacity: 0; }
-    to   { transform: scale(1);  opacity: 1; }
-}
-
-.results .dist { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.results .dist { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .results .dist .chip {
     background: var(--bg-soft);
     border: 1px solid var(--border);
@@ -508,17 +518,18 @@ body {
 }
 .results .dist .chip b { color: var(--primary); }
 
-/* Final estimate */
+/* Final estimate banner */
 .results .final-estimate {
     width: 100%;
     text-align: center;
-    padding: 8px 0 4px;
+    padding: 6px 0 2px;
     color: var(--success);
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: .01em;
 }
 .results .final-estimate b {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 800;
     margin-left: 6px;
 }
@@ -530,9 +541,8 @@ body {
     justify-content: center;
     align-items: center;
     gap: 8px;
-    padding-top: 14px;
+    padding-top: 12px;
     border-top: 1px solid var(--border);
-    margin-top: 4px;
 }
 .estimate-input {
     padding: 8px 12px;
@@ -553,8 +563,60 @@ body {
     box-shadow: 0 0 0 2px var(--success-l);
 }
 
-/* Wait hint */
-.wait-hint { color: var(--muted); font-size: 14px; }
+/* Vote progress bar */
+.vote-progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.vote-progress-track {
+    width: 200px; height: 4px;
+    background: var(--surface-2);
+    border-radius: 99px;
+    overflow: hidden;
+}
+.vote-progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 99px;
+    transition: width .4s cubic-bezier(.4,0,.2,1);
+}
+.vote-progress-label {
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Consensus hero */
+.consensus-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0 4px;
+    width: 100%;
+}
+.consensus-hero-value {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--success) 0%, #4ade80 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: var(--success); /* fallback */
+    animation: pop .4s cubic-bezier(.34,1.56,.64,1);
+}
+.consensus-hero-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--success);
+}
+@keyframes pop {
+    from { transform: scale(.6); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
+}
 
 /* =====================================================
    Deck bar
