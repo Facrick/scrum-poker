@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=8">
+    <link rel="stylesheet" href="style.css?v=9">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
@@ -65,7 +65,7 @@
     <section id="moderatorPanel" class="mod-panel hidden">
         <!-- Строка 1: задача -->
         <div class="mod-row">
-            <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)" autocomplete="off">
+            <input id="storyInput" type="text" class="mod-input" placeholder="Название задачи → добавит в бэклог" autocomplete="off">
             <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
         </div>
         <!-- Строка 2: колода + таймер + действия -->
@@ -112,11 +112,6 @@
                 <button id="exportCsvBtn" class="btn btn-ghost btn-sm" title="Экспорт в CSV">⬇ CSV</button>
             </div>
             <div id="backlogList" class="backlog-list"></div>
-            <div id="backlogAddForm" class="backlog-add hidden">
-                <input id="backlogInput" type="text" class="backlog-input" maxlength="120"
-                       placeholder="Название задачи" autocomplete="off">
-                <button id="addBacklogItemBtn" class="btn btn-ghost btn-sm">+ Добавить</button>
-            </div>
         </aside>
     </div>
 
@@ -128,6 +123,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
