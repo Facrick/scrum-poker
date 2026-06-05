@@ -293,26 +293,43 @@ function renderResults(state) {
     const s = state.stats;
     let html = "";
 
+    // Итоговая оценка (зафиксированная) — сверху если есть
     if (state.finalEstimate != null) {
         html += `<div class="final-estimate">✅ Итоговая оценка: <b>${escapeHtml(state.finalEstimate)}</b></div>`;
     }
-    if (s.consensus) html += `<div class="consensus">🎉 Консенсус!</div>`;
-    if (s.average != null) html += metric("Среднее", round(s.average));
-    if (s.median != null) html += metric("Медиана", round(s.median));
-    const chips = Object.entries(s.distribution)
-        .sort((a, b) => b[1] - a[1])
-        .map(([k, v]) => `<span class="chip">${escapeHtml(k)} <b>×${v}</b></span>`).join("");
-    if (chips) html += `<div class="metric"><div class="label">Голоса</div><div class="dist">${chips}</div></div>`;
 
+    // Консенсус — показываем большое число-герой вместо трёх одинаковых метрик
+    if (s.consensus) {
+        const val = Object.keys(s.distribution)[0];
+        html += `<div class="consensus-hero">
+            <div class="consensus-hero-value">${escapeHtml(val)}</div>
+            <div class="consensus-hero-label">🎉 Консенсус!</div>
+        </div>`;
+    } else {
+        // Не консенсус — показываем полную статистику
+        html += `<div class="results-metrics">`;
+        if (s.average != null) html += metric("Среднее", round(s.average));
+        if (s.median  != null) html += metric("Медиана", round(s.median));
+        const chips = Object.entries(s.distribution)
+            .sort((a, b) => b[1] - a[1])
+            .map(([k, v]) => `<span class="chip">${escapeHtml(k)} <b>×${v}</b></span>`).join("");
+        if (chips) html += `<div class="metric"><div class="label">Голоса</div><div class="dist">${chips}</div></div>`;
+        html += `</div>`;
+    }
+
+    // Форма фиксации оценки для модератора
     if (myRole === "MODERATOR") {
         const suggested = s.consensus
             ? Object.keys(s.distribution)[0]
             : (s.average != null ? String(round(s.average)) : "");
         const current = state.finalEstimate ?? suggested;
+        const isFixed = state.finalEstimate != null;
+        const btnLabel = isFixed ? "Изменить" : "Зафиксировать";
+        const btnClass = isFixed ? "btn-secondary" : "btn-success";
         html += `<div class="estimate-form">
             <input id="estimateInput" class="estimate-input" type="text" maxlength="16"
                    value="${escapeHtml(current)}" placeholder="Оценка" autocomplete="off">
-            <button id="confirmEstimateBtn" class="btn btn-success btn-sm">Зафиксировать</button>
+            <button id="confirmEstimateBtn" class="btn ${btnClass} btn-sm">${btnLabel}</button>
         </div>`;
     }
 
@@ -329,13 +346,21 @@ function renderResults(state) {
     }
 }
 
-// ---------- Подсказка голосования ----------
+// ---------- Прогресс голосования ----------
 function renderWaitHint(state) {
     const hint = $("waitHint");
-    if (state.revealed) { hint.textContent = ""; return; }
+    if (state.revealed) { hint.innerHTML = ""; return; }
     const voters = state.participants.filter(p => p.role !== "OBSERVER");
-    const voted = voters.filter(p => p.hasVoted).length;
-    hint.textContent = voters.length ? `Проголосовали: ${voted} из ${voters.length}` : "";
+    const voted  = voters.filter(p => p.hasVoted).length;
+    if (!voters.length) { hint.innerHTML = ""; return; }
+    const pct = voters.length ? Math.round(voted / voters.length * 100) : 0;
+    hint.innerHTML = `
+        <div class="vote-progress">
+            <div class="vote-progress-track">
+                <div class="vote-progress-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="vote-progress-label">${voted} из ${voters.length} проголосовали</div>
+        </div>`;
 }
 
 // ---------- Бэклог ----------
@@ -424,8 +449,14 @@ $("setStoryBtn").addEventListener("click", () => {
     if (!v) return;
     send("story", { participantId: myId, story: v });
     $("storyInput").value = "";
+    $("setStoryBtn").disabled = true;
 });
 $("storyInput").addEventListener("keydown", e => { if (e.key === "Enter") $("setStoryBtn").click(); });
+$("storyInput").addEventListener("input", () => {
+    $("setStoryBtn").disabled = !$("storyInput").value.trim();
+});
+// Изначально заблокирована
+$("setStoryBtn").disabled = true;
 
 $("revealBtn").addEventListener("click", () => send("reveal", { participantId: myId }));
 $("resetBtn").addEventListener("click", () => send("reset", { participantId: myId }));
