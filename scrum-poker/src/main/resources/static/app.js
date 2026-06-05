@@ -381,21 +381,26 @@ function exportCsv() {
     if (!currentState || !currentState.backlog || currentState.backlog.length === 0) {
         toast("Бэклог пуст"); return;
     }
+
     const rows = [["Задача", "Оценка"]];
-    currentState.backlog.forEach(item => {
-        rows.push([`"${item.title.replace(/"/g, '""')}"`, item.estimate || ""]);
+    currentState.backlog.forEach(item => rows.push([item.title, item.estimate || ""]));
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Ширина столбцов
+    ws["!cols"] = [{ wch: 50 }, { wch: 12 }];
+
+    // Стиль заголовка (жирный)
+    ["A1", "B1"].forEach(cell => {
+        if (ws[cell]) ws[cell].s = { font: { bold: true } };
     });
-    const csv = rows.map(r => r.join(",")).join("\r\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (currentState.roomName || "scrum-poker") + ".csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast("CSV скачан", true);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Бэклог");
+
+    const filename = (currentState.roomName || "scrum-poker") + ".xlsx";
+    XLSX.writeFile(wb, filename);
+    toast("Excel скачан", true);
 }
 
 function metric(label, value) {

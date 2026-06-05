@@ -6,9 +6,10 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=9">
+    <link rel="stylesheet" href="style.css?v=10">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -109,7 +110,7 @@
         <aside id="backlogPanel" class="backlog-panel hidden">
             <div class="backlog-header">
                 <span class="backlog-title-bar">📋 Бэклог</span>
-                <button id="exportCsvBtn" class="btn btn-ghost btn-sm" title="Экспорт в CSV">⬇ CSV</button>
+                <button id="exportCsvBtn" class="btn btn-ghost btn-sm" title="Экспорт в Excel">⬇ XLS</button>
             </div>
             <div id="backlogList" class="backlog-list"></div>
         </aside>
@@ -123,6 +124,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
