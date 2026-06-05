@@ -12,18 +12,14 @@ const joinMode = !!roomId; // true = вход по ссылке, false = соз�
 
 // ---------- Настройка лобби ----------
 (function setupLobby() {
-    // имя запоминаем между визитами
     const saved = localStorage.getItem("sp_name");
     if (saved) $("nameInput").value = saved;
 
     if (joinMode) {
-        // Вход по ссылке: можно выбрать роль (участник/наблюдатель).
         $("lobbySub").textContent = "Вас пригласили в комнату — введите имя, чтобы войти";
         $("roleField").classList.remove("hidden");
         $("primaryBtn").textContent = "Войти в комнату";
     }
-    // При создании комнаты роль и колоду не спрашиваем:
-    // создатель — модератор, колода по умолчанию Фибоначчи и меняется в комнате.
 
     $("primaryBtn").addEventListener("click", onPrimary);
     $("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") onPrimary(); });
@@ -38,7 +34,6 @@ async function onPrimary() {
     $("primaryBtn").disabled = true;
     try {
         if (!joinMode) {
-            // создаём комнату
             const res = await fetch("/api/rooms", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -48,7 +43,6 @@ async function onPrimary() {
             roomId = (await res.json()).roomId;
             history.replaceState(null, "", "?room=" + roomId);
         } else {
-            // проверяем, что комната существует
             const res = await fetch("/api/rooms/" + encodeURIComponent(roomId));
             if (!res.ok) { lobbyError("Комната не найдена или закрыта"); $("primaryBtn").disabled = false; return; }
         }
@@ -83,7 +77,6 @@ function connectAndJoin(name, role) {
 
 function onMe(body) {
     if (body.error) {
-        // вернуться в лобби с ошибкой
         showRoom(false);
         lobbyError(body.error);
         $("primaryBtn").disabled = false;
@@ -117,7 +110,7 @@ function applyRole() {
 // ---------- Рендер ----------
 function render(state) {
     currentState = state;
-    if (!myId) return; // ждём свой id
+    if (!myId) return;
 
     $("roomName").textContent = state.roomName;
     const story = $("storyLabel");
@@ -127,12 +120,28 @@ function render(state) {
     const online = state.participants.filter(p => p.online).length;
     $("onlineCount").textContent = "👥 " + online;
 
-    if ($("deckChange").value !== state.deck) $("deckChange").value = state.deck;
-
+    renderDeckSelector(state);
     renderTable(state);
     renderDeck(state);
     renderResults(state);
     renderWaitHint(state);
+}
+
+function renderDeckSelector(state) {
+    const sel = $("deckChange");
+    if (sel.value !== state.deck) sel.value = state.deck;
+
+    const isCustom = state.deck === "CUSTOM";
+    $("customDeckWrap").classList.toggle("hidden", !isCustom);
+
+    // Подставляем текущие карты в поле, чтобы модератор видел что сейчас
+    if (isCustom && state.cards && state.cards.length > 0) {
+        const input = $("customCardsInput");
+        // Обновляем только если поле не в фокусе
+        if (document.activeElement !== input) {
+            input.value = state.cards.join(", ");
+        }
+    }
 }
 
 function renderTable(state) {
@@ -214,6 +223,12 @@ function renderResults(state) {
     el.classList.remove("hidden");
     const s = state.stats;
     let html = "";
+
+    // Итоговая оценка (зафиксированная)
+    if (state.finalEstimate != null) {
+        html += `<div class="final-estimate">✅ Итоговая оценка: <b>${escapeHtml(state.finalEstimate)}</b></div>`;
+    }
+
     if (s.consensus) html += `<div class="consensus">🎉 Консенсус!</div>`;
     if (s.average != null) html += metric("Среднее", round(s.average));
     if (s.median != null) html += metric("Медиана", round(s.median));
@@ -221,7 +236,32 @@ function renderResults(state) {
         .sort((a, b) => b[1] - a[1])
         .map(([k, v]) => `<span class="chip">${escapeHtml(k)} <b>×${v}</b></span>`).join("");
     if (chips) html += `<div class="metric"><div class="label">Голоса</div><div class="dist">${chips}</div></div>`;
+
+    // Кнопка фиксации оценки для модератора
+    if (myRole === "MODERATOR") {
+        const suggestedValue = s.consensus
+            ? Object.keys(s.distribution)[0]
+            : (s.average != null ? String(round(s.average)) : "");
+        const current = state.finalEstimate ?? suggestedValue;
+        html += `<div class="estimate-form">
+            <input id="estimateInput" class="estimate-input" type="text" maxlength="16"
+                   value="${escapeHtml(current)}" placeholder="Итоговая оценка">
+            <button id="confirmEstimateBtn" class="btn btn-success btn-sm">Зафиксировать</button>
+        </div>`;
+    }
+
     el.innerHTML = html;
+
+    // Вешаем обработчик после вставки в DOM
+    if (myRole === "MODERATOR") {
+        $("confirmEstimateBtn").addEventListener("click", () => {
+            const val = $("estimateInput").value.trim();
+            if (val) send("estimate", { participantId: myId, estimate: val });
+        });
+        $("estimateInput").addEventListener("keydown", e => {
+            if (e.key === "Enter") $("confirmEstimateBtn").click();
+        });
+    }
 }
 
 function renderWaitHint(state) {
@@ -248,7 +288,30 @@ $("setStoryBtn").addEventListener("click", () => {
 $("storyInput").addEventListener("keydown", e => { if (e.key === "Enter") $("setStoryBtn").click(); });
 $("revealBtn").addEventListener("click", () => send("reveal", { participantId: myId }));
 $("resetBtn").addEventListener("click", () => send("reset", { participantId: myId }));
-$("deckChange").addEventListener("change", (e) => send("deck", { participantId: myId, deck: e.target.value }));
+
+$("deckChange").addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (val === "CUSTOM") {
+        $("customDeckWrap").classList.remove("hidden");
+        $("customCardsInput").focus();
+    } else {
+        $("customDeckWrap").classList.add("hidden");
+        send("deck", { participantId: myId, deck: val });
+    }
+});
+
+$("applyCustomDeckBtn").addEventListener("click", applyCustomDeck);
+$("customCardsInput").addEventListener("keydown", e => { if (e.key === "Enter") applyCustomDeck(); });
+
+function applyCustomDeck() {
+    const raw = $("customCardsInput").value.trim();
+    if (!raw) return;
+    const cards = raw.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    if (cards.length === 0) { toast("Введите хотя бы одну карту"); return; }
+    if (cards.length > 20) { toast("Не более 20 карт"); return; }
+    send("customdeck", { participantId: myId, cards });
+}
+
 $("copyLinkBtn").addEventListener("click", () => {
     const url = location.origin + "/?room=" + roomId;
     navigator.clipboard.writeText(url).then(() => toast("Ссылка скопирована — отправьте команде", true));

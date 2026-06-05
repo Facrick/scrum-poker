@@ -9,5 +9,7 @@ public final class Messages {
     public record ModeratorAction(String participantId) {} // отправитель, для проверки прав
     public record SetStoryMessage(String participantId, String story) {}
     public record SetDeckMessage(String participantId, String deck) {}
+    public record SetCustomDeckMessage(String participantId, java.util.List<String> cards) {}
+    public record SetFinalEstimateMessage(String participantId, String estimate) {}
     public record KickMessage(String participantId, String targetId) {}
 }

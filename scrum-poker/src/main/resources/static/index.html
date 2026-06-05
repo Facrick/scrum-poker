@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
@@ -60,7 +60,13 @@
             <option value="FIBONACCI">Фибоначчи</option>
             <option value="POWERS_OF_TWO">Степени двойки</option>
             <option value="TSHIRT">Майки</option>
+            <option value="CUSTOM">Своя колода…</option>
         </select>
+        <div id="customDeckWrap" class="custom-deck-wrap hidden">
+            <input id="customCardsInput" type="text" class="mod-input" maxlength="120"
+                   placeholder="1, 2, 4, 8, XL, ? (через запятую)">
+            <button id="applyCustomDeckBtn" class="btn btn-ghost">Применить</button>
+        </div>
         <span class="mod-spacer"></span>
         <button id="revealBtn" class="btn btn-success">Вскрыть карты</button>
         <button id="resetBtn" class="btn btn-secondary">Новый раунд</button>
@@ -80,6 +86,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
