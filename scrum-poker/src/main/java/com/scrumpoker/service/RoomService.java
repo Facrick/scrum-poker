@@ -3,9 +3,13 @@ package com.scrumpoker.service;
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,6 +20,9 @@ public class RoomService {
     private static final String ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
     private static final int MAX_PARTICIPANTS = 100;
     private final SecureRandom random = new SecureRandom();
+
+    @Value("${app.room-ttl-hours:8}")
+    private int roomTtlHours;
 
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
 
@@ -49,6 +56,16 @@ public class RoomService {
         if (room.size() == 0) {
             rooms.remove(room.getId());
         }
+    }
+
+    /**
+     * Каждые 30 минут удаляет комнаты, созданные более {@code roomTtlHours} часов назад.
+     * Защищает от утечки памяти при длительной работе сервера.
+     */
+    @Scheduled(fixedDelay = 30 * 60 * 1000)
+    public void evictStaleRooms() {
+        Instant cutoff = Instant.now().minus(roomTtlHours, ChronoUnit.HOURS);
+        rooms.values().removeIf(room -> room.getCreatedAt().isBefore(cutoff));
     }
 
     private String generateId() {
