@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Room {
     private final String id;
@@ -14,6 +15,12 @@ public class Room {
     private volatile boolean revealed = false;
     private volatile List<String> customCards = List.of();
     private volatile String finalEstimate = null;
+    // Таймер
+    private volatile int timerSeconds = 0;
+    private volatile Instant timerStartedAt = null;
+    // Бэклог задач
+    private final List<BacklogItem> backlog = new CopyOnWriteArrayList<>();
+    private volatile String activeItemId = null;
     private final Instant createdAt = Instant.now();
     private final Map<String, Participant> participants = new ConcurrentHashMap<>();
 
@@ -36,6 +43,15 @@ public class Room {
     public void setFinalEstimate(String finalEstimate) { this.finalEstimate = finalEstimate; }
     public String getCurrentStory() { return currentStory; }
     public void setCurrentStory(String story) { this.currentStory = story == null ? "" : story; this.finalEstimate = null; }
+
+    public int getTimerSeconds() { return timerSeconds; }
+    public void setTimerSeconds(int s) { this.timerSeconds = s; }
+    public Instant getTimerStartedAt() { return timerStartedAt; }
+    public void setTimerStartedAt(Instant t) { this.timerStartedAt = t; }
+
+    public List<BacklogItem> getBacklog() { return backlog; }
+    public String getActiveItemId() { return activeItemId; }
+    public void setActiveItemId(String id) { this.activeItemId = id; }
     public boolean isRevealed() { return revealed; }
     public void setRevealed(boolean revealed) { this.revealed = revealed; }
     public Instant getCreatedAt() { return createdAt; }
@@ -46,9 +62,10 @@ public class Room {
     public Participant removeParticipant(String id) { return participants.remove(id); }
     public int size() { return participants.size(); }
 
-    /** Сбросить раунд: спрятать карты и очистить голоса. */
+    /** Сбросить раунд: спрятать карты, очистить голоса и остановить таймер. */
     public void resetRound() {
         revealed = false;
+        timerStartedAt = null;
         participants.values().forEach(p -> p.setVote(null));
     }
 }

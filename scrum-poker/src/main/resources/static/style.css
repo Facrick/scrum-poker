@@ -107,9 +107,10 @@ body {
 
 /* ---------- Room ---------- */
 .room {
-    min-height: 100%;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 .topbar {
     display: flex;
@@ -137,11 +138,16 @@ body {
 /* moderator panel */
 .mod-panel {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 22px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 22px;
     background: var(--bg-soft);
     border-bottom: 1px solid var(--border);
+}
+.mod-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     flex-wrap: wrap;
 }
 .mod-input {
@@ -170,6 +176,14 @@ body {
 .mod-select:focus { border-color: var(--primary); }
 .mod-spacer { flex: 1; }
 
+/* room body */
+.room-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
 /* stage */
 .stage {
     flex: 1;
@@ -178,6 +192,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 28px;
+    overflow-y: auto;
 }
 .table {
     display: flex;
@@ -328,7 +343,168 @@ body {
 .estimate-input:focus { border-color: var(--success); }
 .btn-sm { padding: 7px 14px; font-size: 13px; }
 
-@media (max-width: 600px) {
+/* custom deck input */
+.custom-deck-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 280px;
+}
+.custom-deck-wrap .mod-input { flex: 1 1 200px; min-width: 140px; }
+
+/* timer badge (topbar) */
+.timer-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    min-width: 68px;
+    justify-content: center;
+    transition: background .3s, border-color .3s, color .3s;
+}
+.timer-badge.danger { background: rgba(239,90,111,.18); border-color: var(--danger); color: var(--danger); }
+.timer-badge.expired { background: rgba(239,90,111,.28); border-color: var(--danger); color: var(--danger); }
+
+/* timer controls in mod-panel */
+.timer-wrap { display: flex; align-items: center; gap: 6px; }
+
+/* final estimate */
+.results .final-estimate {
+    width: 100%;
+    text-align: center;
+    font-size: 20px;
+    color: var(--success);
+    padding: 6px 0 2px;
+}
+.results .final-estimate b { font-size: 26px; font-weight: 800; }
+
+/* estimate confirm form */
+.estimate-form {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+.estimate-input {
+    padding: 8px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    width: 130px;
+    outline: none;
+    text-align: center;
+}
+.estimate-input:focus { border-color: var(--success); }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+
+/* backlog panel */
+.backlog-panel {
+    width: 300px;
+    min-width: 260px;
+    border-left: 1px solid var(--border);
+    background: var(--bg-soft);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.backlog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.backlog-title-bar { color: var(--text); }
+.backlog-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+.backlog-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 0;
+    transition: background .15s;
+    position: relative;
+    border-left: 3px solid transparent;
+}
+.backlog-item:hover { background: var(--surface); }
+.backlog-item.active {
+    border-left-color: var(--primary);
+    background: rgba(109,124,255,.08);
+}
+.backlog-item.done .backlog-item-title { color: var(--muted); }
+.backlog-item-title {
+    flex: 1;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.backlog-item-est {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--success);
+    white-space: nowrap;
+    min-width: 24px;
+    text-align: right;
+}
+.backlog-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity .15s, color .15s;
+}
+.backlog-item:hover .backlog-remove { opacity: 1; }
+.backlog-remove:hover { color: var(--danger); }
+.backlog-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.backlog-input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+}
+.backlog-input:focus { border-color: var(--primary); }
+
+@media (max-width: 700px) {
+    .room-body { flex-direction: column; }
+    .backlog-panel { width: 100%; min-width: unset; border-left: none; border-top: 1px solid var(--border); max-height: 260px; }
     .room-story { max-width: 38vw; }
     .seat { width: 84px; }
     .seat .card-slot { width: 60px; height: 84px; font-size: 24px; }

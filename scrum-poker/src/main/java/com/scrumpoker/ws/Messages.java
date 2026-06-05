@@ -12,4 +12,11 @@ public final class Messages {
     public record SetCustomDeckMessage(String participantId, java.util.List<String> cards) {}
     public record SetFinalEstimateMessage(String participantId, String estimate) {}
     public record KickMessage(String participantId, String targetId) {}
+    // Таймер
+    public record StartTimerMessage(String participantId, int seconds) {}
+    public record StopTimerMessage(String participantId) {}
+    // Бэклог
+    public record AddBacklogItemMessage(String participantId, String title) {}
+    public record RemoveBacklogItemMessage(String participantId, String itemId) {}
+    public record ActivateBacklogItemMessage(String participantId, String itemId) {}
 }

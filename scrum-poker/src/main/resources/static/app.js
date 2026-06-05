@@ -8,10 +8,12 @@ let roomId = new URLSearchParams(location.search).get("room");
 let myId = null;
 let myRole = null;
 let currentState = null;
-let myVote = null; // локальный выбор карты (сервер скрывает до вскрытия)
-const joinMode = !!roomId; // true = вход по ссылке, false = создание комнаты
+let myVote = null;          // локальный выбор карты до вскрытия
+let timerInterval = null;   // setInterval для таймера
+let backlogOpen = false;    // видимость бэклог-панели
+const joinMode = !!roomId;
 
-// ---------- Настройка лобби ----------
+// ---------- Лобби ----------
 (function setupLobby() {
     const saved = localStorage.getItem("sp_name");
     if (saved) $("nameInput").value = saved;
@@ -110,11 +112,13 @@ function setConn(online) {
 function applyRole() {
     $("moderatorPanel").classList.toggle("hidden", myRole !== "MODERATOR");
     $("deckBar").classList.toggle("hidden", myRole === "OBSERVER");
+    if (myRole === "MODERATOR") {
+        $("backlogAddForm").classList.remove("hidden");
+    }
 }
 
 // ---------- Рендер ----------
 function render(state) {
-    // Если сервер прислал новый раунд (не вскрыт, а раньше был) — сбрасываем локальный выбор
     if (currentState && currentState.revealed && !state.revealed) myVote = null;
     currentState = state;
     if (!myId) return;
@@ -128,29 +132,72 @@ function render(state) {
     $("onlineCount").textContent = "👥 " + online;
 
     renderDeckSelector(state);
+    renderTimer(state);
     renderTable(state);
     renderDeck(state);
     renderResults(state);
     renderWaitHint(state);
+    renderBacklog(state);
 }
 
+// ---------- Колода ----------
 function renderDeckSelector(state) {
     const sel = $("deckChange");
     if (sel.value !== state.deck) sel.value = state.deck;
-
     const isCustom = state.deck === "CUSTOM";
     $("customDeckWrap").classList.toggle("hidden", !isCustom);
-
-    // Подставляем текущие карты в поле, чтобы модератор видел что сейчас
     if (isCustom && state.cards && state.cards.length > 0) {
         const input = $("customCardsInput");
-        // Обновляем только если поле не в фокусе
-        if (document.activeElement !== input) {
-            input.value = state.cards.join(", ");
-        }
+        if (document.activeElement !== input) input.value = state.cards.join(", ");
     }
 }
 
+// ---------- Таймер ----------
+function renderTimer(state) {
+    const running = state.timerStartedAt && state.timerSeconds > 0 && !state.revealed;
+
+    if (myRole === "MODERATOR") {
+        $("startTimerBtn").classList.toggle("hidden", !!running);
+        $("stopTimerBtn").classList.toggle("hidden", !running);
+    }
+
+    if (running) {
+        updateTimerDisplay(state.timerStartedAt, state.timerSeconds);
+    } else {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        $("timerDisplay").classList.add("hidden");
+    }
+}
+
+function updateTimerDisplay(startedAt, seconds) {
+    $("timerDisplay").classList.remove("hidden");
+    if (timerInterval) clearInterval(timerInterval);
+
+    function tick() {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        const remaining = Math.max(0, seconds - elapsed);
+        const m = Math.floor(remaining / 60);
+        const s = Math.floor(remaining % 60);
+        $("timerValue").textContent = m + ":" + String(s).padStart(2, "0");
+        const display = $("timerDisplay");
+        display.classList.toggle("danger", remaining <= 10 && remaining > 0);
+        display.classList.toggle("expired", remaining <= 0);
+
+        if (remaining <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            // Автовскрытие — только от модератора, один раз
+            if (myRole === "MODERATOR" && currentState && !currentState.revealed) {
+                send("reveal", { participantId: myId });
+            }
+        }
+    }
+    tick();
+    timerInterval = setInterval(tick, 500);
+}
+
+// ---------- Стол ----------
 function renderTable(state) {
     const table = $("table");
     table.innerHTML = "";
@@ -206,15 +253,16 @@ function renderTable(state) {
     });
 }
 
+// ---------- Колода карт ----------
 function renderDeck(state) {
     const deck = $("deck");
     deck.innerHTML = "";
     if (myRole === "OBSERVER") return;
-    const me = state.participants.find(p => p.id === myId);
     state.cards.forEach(card => {
         const btn = document.createElement("button");
-        // После вскрытия используем серверное значение, до — локальный myVote
-        const isSelected = state.revealed ? (me && me.vote === card) : (myVote === card);
+        const isSelected = state.revealed
+            ? (state.participants.find(p => p.id === myId)?.vote === card)
+            : (myVote === card);
         btn.className = "pcard" + (isSelected ? " selected" : "");
         btn.textContent = card;
         btn.disabled = state.revealed;
@@ -229,6 +277,7 @@ function renderDeck(state) {
         : "Выберите карту";
 }
 
+// ---------- Результаты ----------
 function renderResults(state) {
     const el = $("results");
     if (!state.revealed || !state.stats) { el.classList.add("hidden"); el.innerHTML = ""; return; }
@@ -236,11 +285,9 @@ function renderResults(state) {
     const s = state.stats;
     let html = "";
 
-    // Итоговая оценка (зафиксированная)
     if (state.finalEstimate != null) {
         html += `<div class="final-estimate">✅ Итоговая оценка: <b>${escapeHtml(state.finalEstimate)}</b></div>`;
     }
-
     if (s.consensus) html += `<div class="consensus">🎉 Консенсус!</div>`;
     if (s.average != null) html += metric("Среднее", round(s.average));
     if (s.median != null) html += metric("Медиана", round(s.median));
@@ -249,12 +296,11 @@ function renderResults(state) {
         .map(([k, v]) => `<span class="chip">${escapeHtml(k)} <b>×${v}</b></span>`).join("");
     if (chips) html += `<div class="metric"><div class="label">Голоса</div><div class="dist">${chips}</div></div>`;
 
-    // Кнопка фиксации оценки для модератора
     if (myRole === "MODERATOR") {
-        const suggestedValue = s.consensus
+        const suggested = s.consensus
             ? Object.keys(s.distribution)[0]
             : (s.average != null ? String(round(s.average)) : "");
-        const current = state.finalEstimate ?? suggestedValue;
+        const current = state.finalEstimate ?? suggested;
         html += `<div class="estimate-form">
             <input id="estimateInput" class="estimate-input" type="text" maxlength="16"
                    value="${escapeHtml(current)}" placeholder="Итоговая оценка" autocomplete="off">
@@ -264,7 +310,6 @@ function renderResults(state) {
 
     el.innerHTML = html;
 
-    // Вешаем обработчик после вставки в DOM
     if (myRole === "MODERATOR") {
         $("confirmEstimateBtn").addEventListener("click", () => {
             const val = $("estimateInput").value.trim();
@@ -276,14 +321,84 @@ function renderResults(state) {
     }
 }
 
+// ---------- Подсказка голосования ----------
 function renderWaitHint(state) {
     const hint = $("waitHint");
     if (state.revealed) { hint.textContent = ""; return; }
     const voters = state.participants.filter(p => p.role !== "OBSERVER");
     const voted = voters.filter(p => p.hasVoted).length;
-    hint.textContent = voters.length
-        ? `Проголосовали: ${voted} из ${voters.length}`
-        : "";
+    hint.textContent = voters.length ? `Проголосовали: ${voted} из ${voters.length}` : "";
+}
+
+// ---------- Бэклог ----------
+function renderBacklog(state) {
+    const panel = $("backlogPanel");
+    const list = $("backlogList");
+
+    const hasItems = state.backlog && state.backlog.length > 0;
+    // Открываем автоматически, если появились задачи и панель ещё не открыта
+    if (hasItems && !backlogOpen) {
+        backlogOpen = true;
+    }
+    panel.classList.toggle("hidden", !backlogOpen);
+
+    if (!state.backlog) return;
+    list.innerHTML = "";
+    state.backlog.forEach(item => {
+        const el = document.createElement("div");
+        const isActive = item.id === state.activeItemId;
+        const isDone = !!item.estimate;
+        el.className = "backlog-item" + (isActive ? " active" : "") + (isDone ? " done" : "");
+
+        const titleEl = document.createElement("span");
+        titleEl.className = "backlog-item-title";
+        titleEl.textContent = item.title;
+
+        const estEl = document.createElement("span");
+        estEl.className = "backlog-item-est";
+        estEl.textContent = item.estimate || "";
+
+        el.append(titleEl, estEl);
+
+        if (myRole === "MODERATOR") {
+            el.title = isActive ? "Текущая задача" : "Активировать";
+            el.style.cursor = isActive ? "default" : "pointer";
+            if (!isActive) {
+                el.onclick = () => send("backlog/activate", { participantId: myId, itemId: item.id });
+            }
+            const rm = document.createElement("button");
+            rm.className = "backlog-remove";
+            rm.textContent = "✕";
+            rm.title = "Удалить задачу";
+            rm.onclick = (e) => {
+                e.stopPropagation();
+                send("backlog/remove", { participantId: myId, itemId: item.id });
+            };
+            el.appendChild(rm);
+        }
+        list.appendChild(el);
+    });
+}
+
+function exportCsv() {
+    if (!currentState || !currentState.backlog || currentState.backlog.length === 0) {
+        toast("Бэклог пуст"); return;
+    }
+    const rows = [["Задача", "Оценка"]];
+    currentState.backlog.forEach(item => {
+        rows.push([`"${item.title.replace(/"/g, '""')}"`, item.estimate || ""]);
+    });
+    const csv = rows.map(r => r.join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (currentState.roomName || "scrum-poker") + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("CSV скачан", true);
 }
 
 function metric(label, value) {
@@ -298,6 +413,7 @@ $("setStoryBtn").addEventListener("click", () => {
     $("storyInput").value = "";
 });
 $("storyInput").addEventListener("keydown", e => { if (e.key === "Enter") $("setStoryBtn").click(); });
+
 $("revealBtn").addEventListener("click", () => send("reveal", { participantId: myId }));
 $("resetBtn").addEventListener("click", () => send("reset", { participantId: myId }));
 
@@ -311,10 +427,8 @@ $("deckChange").addEventListener("change", (e) => {
         send("deck", { participantId: myId, deck: val });
     }
 });
-
 $("applyCustomDeckBtn").addEventListener("click", applyCustomDeck);
 $("customCardsInput").addEventListener("keydown", e => { if (e.key === "Enter") applyCustomDeck(); });
-
 function applyCustomDeck() {
     const raw = $("customCardsInput").value.trim();
     if (!raw) return;
@@ -323,6 +437,30 @@ function applyCustomDeck() {
     if (cards.length > 20) { toast("Не более 20 карт"); return; }
     send("customdeck", { participantId: myId, cards });
 }
+
+// Таймер
+$("startTimerBtn").addEventListener("click", () => {
+    const seconds = parseInt($("timerSelect").value, 10);
+    if (!seconds) { toast("Выберите длительность таймера"); return; }
+    send("timer/start", { participantId: myId, seconds });
+});
+$("stopTimerBtn").addEventListener("click", () => send("timer/stop", { participantId: myId }));
+
+// Бэклог
+$("toggleBacklogBtn").addEventListener("click", () => {
+    backlogOpen = !backlogOpen;
+    $("backlogPanel").classList.toggle("hidden", !backlogOpen);
+});
+$("addBacklogItemBtn").addEventListener("click", addBacklogItem);
+$("backlogInput").addEventListener("keydown", e => { if (e.key === "Enter") addBacklogItem(); });
+function addBacklogItem() {
+    const v = $("backlogInput").value.trim();
+    if (!v) return;
+    send("backlog/add", { participantId: myId, title: v });
+    $("backlogInput").value = "";
+}
+
+$("exportCsvBtn").addEventListener("click", exportCsv);
 
 $("copyLinkBtn").addEventListener("click", () => {
     const url = location.origin + "/?room=" + roomId;
@@ -356,5 +494,5 @@ function colorFor(str) {
 }
 function round(n) { return Math.round(n * 10) / 10; }
 function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }

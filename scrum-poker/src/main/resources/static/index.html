@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=7">
+    <link rel="stylesheet" href="style.css?v=8">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
@@ -52,36 +52,73 @@
             </div>
         </div>
         <div class="topbar-right">
+            <div id="timerDisplay" class="timer-badge hidden">
+                <span id="timerValue">0:00</span>
+            </div>
             <span id="connDot" class="conn-dot" title="Соединение"></span>
             <span id="onlineCount" class="pill">👥 0</span>
+            <button id="toggleBacklogBtn" class="btn btn-ghost" title="Бэклог">📋</button>
             <button id="copyLinkBtn" class="btn btn-ghost">🔗 Пригласить</button>
         </div>
     </header>
 
     <section id="moderatorPanel" class="mod-panel hidden">
-        <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)" autocomplete="off">
-        <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
-        <select id="deckChange" class="mod-select" title="Колода">
-            <option value="FIBONACCI">Фибоначчи</option>
-            <option value="POWERS_OF_TWO">Степени двойки</option>
-            <option value="TSHIRT">Майки</option>
-            <option value="CUSTOM">Своя колода…</option>
-        </select>
-        <div id="customDeckWrap" class="custom-deck-wrap hidden">
-            <input id="customCardsInput" type="text" class="mod-input" maxlength="120"
-                   placeholder="1, 2, 4, 8, XL, ? (через запятую)" autocomplete="off">
-            <button id="applyCustomDeckBtn" class="btn btn-ghost">Применить</button>
+        <!-- Строка 1: задача -->
+        <div class="mod-row">
+            <input id="storyInput" type="text" class="mod-input" placeholder="Что оцениваем? (задача/тикет)" autocomplete="off">
+            <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
         </div>
-        <span class="mod-spacer"></span>
-        <button id="revealBtn" class="btn btn-success">Вскрыть карты</button>
-        <button id="resetBtn" class="btn btn-secondary">Новый раунд</button>
+        <!-- Строка 2: колода + таймер + действия -->
+        <div class="mod-row">
+            <select id="deckChange" class="mod-select" title="Колода">
+                <option value="FIBONACCI">Фибоначчи</option>
+                <option value="POWERS_OF_TWO">Степени двойки</option>
+                <option value="TSHIRT">Майки</option>
+                <option value="CUSTOM">Своя колода…</option>
+            </select>
+            <div id="customDeckWrap" class="custom-deck-wrap hidden">
+                <input id="customCardsInput" type="text" class="mod-input" maxlength="120"
+                       placeholder="1, 2, 4, 8, XL, ? (через запятую)" autocomplete="off">
+                <button id="applyCustomDeckBtn" class="btn btn-ghost">Применить</button>
+            </div>
+            <div class="timer-wrap">
+                <select id="timerSelect" class="mod-select" title="Таймер">
+                    <option value="0">⏱ Без таймера</option>
+                    <option value="30">30 сек</option>
+                    <option value="60">1 мин</option>
+                    <option value="90">1:30</option>
+                    <option value="120">2 мин</option>
+                    <option value="180">3 мин</option>
+                </select>
+                <button id="startTimerBtn" class="btn btn-ghost" title="Запустить таймер">▶</button>
+                <button id="stopTimerBtn" class="btn btn-ghost hidden" title="Остановить таймер">■</button>
+            </div>
+            <span class="mod-spacer"></span>
+            <button id="revealBtn" class="btn btn-success">Вскрыть карты</button>
+            <button id="resetBtn" class="btn btn-secondary">Новый раунд</button>
+        </div>
     </section>
 
-    <section class="stage">
-        <div id="table" class="table"></div>
-        <div id="results" class="results hidden"></div>
-        <div id="waitHint" class="wait-hint"></div>
-    </section>
+    <div class="room-body">
+        <section class="stage">
+            <div id="table" class="table"></div>
+            <div id="results" class="results hidden"></div>
+            <div id="waitHint" class="wait-hint"></div>
+        </section>
+
+        <aside id="backlogPanel" class="backlog-panel hidden">
+            <div class="backlog-header">
+                <span class="backlog-title-bar">📋 Бэклог</span>
+                <button id="exportCsvBtn" class="btn btn-ghost btn-sm" title="Экспорт в CSV">⬇ CSV</button>
+            </div>
+            <div id="backlogList" class="backlog-list"></div>
+            <div id="backlogAddForm" class="backlog-add hidden">
+                <input id="backlogInput" type="text" class="backlog-input" maxlength="120"
+                       placeholder="Название задачи" autocomplete="off">
+                <button id="addBacklogItemBtn" class="btn btn-ghost btn-sm">+ Добавить</button>
+            </div>
+        </aside>
+    </div>
 
     <footer id="deckBar" class="deckbar">
         <div id="deck" class="deck"></div>
@@ -91,6 +128,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
