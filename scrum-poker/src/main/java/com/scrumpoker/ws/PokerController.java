@@ -12,8 +12,12 @@ import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import com.scrumpoker.model.BacklogItem;
+
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Controller
 public class PokerController {
@@ -129,10 +133,74 @@ public class PokerController {
     public void setFinalEstimate(@DestinationVariable String roomId, @Payload Messages.SetFinalEstimateMessage msg) {
         Room room = roomService.getRoom(roomId).orElse(null);
         if (room == null || !isModerator(room, msg.participantId())) return;
-        if (!room.isRevealed()) return; // фиксируем только после вскрытия
-        String est = msg.estimate() == null ? null : msg.estimate().strip();
-        if (est != null && est.length() > 16) est = est.substring(0, 16);
+        if (!room.isRevealed()) return;
+        String rawEst = msg.estimate() == null ? null : msg.estimate().strip();
+        final String est = (rawEst != null && rawEst.length() > 16) ? rawEst.substring(0, 16) : rawEst;
         room.setFinalEstimate(est);
+        // Сохраняем оценку в активный элемент бэклога
+        if (est != null && room.getActiveItemId() != null) {
+            room.getBacklog().stream()
+                    .filter(i -> i.getId().equals(room.getActiveItemId()))
+                    .findFirst()
+                    .ifPresent(i -> i.setEstimate(est));
+        }
+        broadcast(room);
+    }
+
+    // ---- Таймер ----
+
+    @MessageMapping("/room/{roomId}/timer/start")
+    public void startTimer(@DestinationVariable String roomId, @Payload Messages.StartTimerMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        if (msg.seconds() <= 0 || msg.seconds() > 600) return;
+        room.setTimerSeconds(msg.seconds());
+        room.setTimerStartedAt(Instant.now());
+        broadcast(room);
+    }
+
+    @MessageMapping("/room/{roomId}/timer/stop")
+    public void stopTimer(@DestinationVariable String roomId, @Payload Messages.StopTimerMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        room.setTimerStartedAt(null);
+        broadcast(room);
+    }
+
+    // ---- Бэклог ----
+
+    @MessageMapping("/room/{roomId}/backlog/add")
+    public void addBacklogItem(@DestinationVariable String roomId, @Payload Messages.AddBacklogItemMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        if (msg.title() == null || msg.title().isBlank()) return;
+        String title = msg.title().strip();
+        if (title.length() > 120) title = title.substring(0, 120);
+        if (room.getBacklog().size() >= 200) return;
+        room.getBacklog().add(new BacklogItem(title));
+        broadcast(room);
+    }
+
+    @MessageMapping("/room/{roomId}/backlog/remove")
+    public void removeBacklogItem(@DestinationVariable String roomId, @Payload Messages.RemoveBacklogItemMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        room.getBacklog().removeIf(i -> i.getId().equals(msg.itemId()));
+        if (msg.itemId().equals(room.getActiveItemId())) room.setActiveItemId(null);
+        broadcast(room);
+    }
+
+    @MessageMapping("/room/{roomId}/backlog/activate")
+    public void activateBacklogItem(@DestinationVariable String roomId, @Payload Messages.ActivateBacklogItemMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        BacklogItem item = room.getBacklog().stream()
+                .filter(i -> i.getId().equals(msg.itemId()))
+                .findFirst().orElse(null);
+        if (item == null) return;
+        room.setActiveItemId(item.getId());
+        room.setCurrentStory(item.getTitle());
+        room.resetRound();
         broadcast(room);
     }
 

@@ -17,10 +17,15 @@ public record RoomStateDto(
         boolean revealed,
         List<ParticipantView> participants,
         StatsDto stats,
-        String finalEstimate
+        String finalEstimate,
+        Long timerStartedAt,   // epoch millis, null = таймер не запущен
+        int timerSeconds,
+        List<BacklogItemView> backlog,
+        String activeItemId
 ) {
     public record ParticipantView(String id, String name, String role, boolean online,
                                    boolean hasVoted, String vote) {}
+    public record BacklogItemView(String id, String title, String estimate) {}
 
     public static RoomStateDto from(Room room) {
         boolean revealed = room.isRevealed();
@@ -37,6 +42,13 @@ public record RoomStateDto(
 
         StatsDto stats = revealed ? StatsDto.compute(room) : null;
 
+        Long timerStartedAt = room.getTimerStartedAt() != null
+                ? room.getTimerStartedAt().toEpochMilli() : null;
+
+        List<BacklogItemView> backlog = room.getBacklog().stream()
+                .map(i -> new BacklogItemView(i.getId(), i.getTitle(), i.getEstimate()))
+                .collect(Collectors.toList());
+
         return new RoomStateDto(
                 room.getId(),
                 room.getName(),
@@ -46,7 +58,11 @@ public record RoomStateDto(
                 revealed,
                 views,
                 stats,
-                room.getFinalEstimate());
+                room.getFinalEstimate(),
+                timerStartedAt,
+                room.getTimerSeconds(),
+                backlog,
+                room.getActiveItemId());
     }
 
     /** Статистика раунда: среднее, медиана, распределение, наличие консенсуса. */
