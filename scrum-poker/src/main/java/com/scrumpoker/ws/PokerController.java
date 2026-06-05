@@ -89,7 +89,14 @@ public class PokerController {
     public void setStory(@DestinationVariable String roomId, @Payload Messages.SetStoryMessage msg) {
         Room room = roomService.getRoom(roomId).orElse(null);
         if (room == null || !isModerator(room, msg.participantId())) return;
-        room.setCurrentStory(msg.story() == null ? "" : msg.story().strip());
+        String title = msg.story() == null ? "" : msg.story().strip();
+        if (title.isEmpty()) return;
+        // Добавляем задачу в бэклог и сразу активируем
+        BacklogItem item = new BacklogItem(title);
+        if (room.getBacklog().size() < 200) room.getBacklog().add(item);
+        room.setActiveItemId(item.getId());
+        room.setCurrentStory(title);
+        room.resetRound();
         broadcast(room);
     }
 

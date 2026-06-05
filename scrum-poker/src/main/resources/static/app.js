@@ -112,9 +112,6 @@ function setConn(online) {
 function applyRole() {
     $("moderatorPanel").classList.toggle("hidden", myRole !== "MODERATOR");
     $("deckBar").classList.toggle("hidden", myRole === "OBSERVER");
-    if (myRole === "MODERATOR") {
-        $("backlogAddForm").classList.remove("hidden");
-    }
 }
 
 // ---------- Рендер ----------
@@ -451,14 +448,6 @@ $("toggleBacklogBtn").addEventListener("click", () => {
     backlogOpen = !backlogOpen;
     $("backlogPanel").classList.toggle("hidden", !backlogOpen);
 });
-$("addBacklogItemBtn").addEventListener("click", addBacklogItem);
-$("backlogInput").addEventListener("keydown", e => { if (e.key === "Enter") addBacklogItem(); });
-function addBacklogItem() {
-    const v = $("backlogInput").value.trim();
-    if (!v) return;
-    send("backlog/add", { participantId: myId, title: v });
-    $("backlogInput").value = "";
-}
 
 $("exportCsvBtn").addEventListener("click", exportCsv);
 
