@@ -48,7 +48,7 @@ async function onPrimary() {
             });
             if (!res.ok) throw new Error();
             roomId = (await res.json()).roomId;
-            history.replaceState(null, "", "?room=" + roomId);
+            // URL обновим после успешного подключения (в onMe), чтобы при ошибке не застрять в join-режиме
         } else {
             const res = await fetch("/api/rooms/" + encodeURIComponent(roomId));
             if (!res.ok) { lobbyError("Комната не найдена или закрыта"); $("primaryBtn").disabled = false; return; }
@@ -92,6 +92,10 @@ function onMe(body) {
     }
     myId = body.participantId;
     myRole = body.role;
+    // Обновляем URL только сейчас — соединение успешно, комната точно существует
+    if (!joinMode && roomId) {
+        history.replaceState(null, "", "?room=" + roomId);
+    }
     showRoom(true);
     applyRole();
     if (currentState) render(currentState);
