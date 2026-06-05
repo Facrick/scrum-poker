@@ -2,6 +2,7 @@ package com.scrumpoker.model;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -11,6 +12,8 @@ public class Room {
     private volatile Deck deck;
     private volatile String currentStory = "";
     private volatile boolean revealed = false;
+    private volatile List<String> customCards = List.of();
+    private volatile String finalEstimate = null;
     private final Instant createdAt = Instant.now();
     private final Map<String, Participant> participants = new ConcurrentHashMap<>();
 
@@ -25,8 +28,14 @@ public class Room {
     public void setName(String name) { this.name = name; }
     public Deck getDeck() { return deck; }
     public void setDeck(Deck deck) { this.deck = deck; }
+    public List<String> getCustomCards() { return customCards; }
+    public void setCustomCards(List<String> customCards) { this.customCards = customCards; }
+    /** Возвращает реальный список карт: кастомные для CUSTOM, иначе из enum. */
+    public List<String> getEffectiveCards() { return deck == Deck.CUSTOM ? customCards : deck.getCards(); }
+    public String getFinalEstimate() { return finalEstimate; }
+    public void setFinalEstimate(String finalEstimate) { this.finalEstimate = finalEstimate; }
     public String getCurrentStory() { return currentStory; }
-    public void setCurrentStory(String currentStory) { this.currentStory = currentStory; }
+    public void setCurrentStory(String story) { this.currentStory = story == null ? "" : story; this.finalEstimate = null; }
     public boolean isRevealed() { return revealed; }
     public void setRevealed(boolean revealed) { this.revealed = revealed; }
     public Instant getCreatedAt() { return createdAt; }

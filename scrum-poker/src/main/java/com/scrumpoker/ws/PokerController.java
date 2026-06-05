@@ -59,8 +59,8 @@ public class PokerController {
         if (room == null) return;
         Participant p = room.getParticipant(msg.participantId());
         if (p == null || p.getRole() == Participant.Role.OBSERVER || room.isRevealed()) return;
-        // Голос принимается только если значение есть в колоде.
-        if (!room.getDeck().getCards().contains(msg.value())) return;
+        // Голос принимается только если значение есть в текущей колоде.
+        if (!room.getEffectiveCards().contains(msg.value())) return;
         p.setVote(msg.value());
         broadcast(room);
     }
@@ -93,12 +93,46 @@ public class PokerController {
     public void setDeck(@DestinationVariable String roomId, @Payload Messages.SetDeckMessage msg) {
         Room room = roomService.getRoom(roomId).orElse(null);
         if (room == null || !isModerator(room, msg.participantId()) || msg.deck() == null) return;
+        com.scrumpoker.model.Deck newDeck;
         try {
-            room.setDeck(com.scrumpoker.model.Deck.valueOf(msg.deck().toUpperCase()));
+            newDeck = com.scrumpoker.model.Deck.valueOf(msg.deck().toUpperCase());
         } catch (IllegalArgumentException e) {
             return; // неизвестная колода — игнорируем
         }
+        // Нельзя переключиться на CUSTOM через этот хендлер — только через /customdeck
+        if (newDeck == com.scrumpoker.model.Deck.CUSTOM) return;
+        room.setDeck(newDeck);
         room.resetRound(); // прежние голоса не относятся к новой колоде
+        broadcast(room);
+    }
+
+    @MessageMapping("/room/{roomId}/customdeck")
+    public void setCustomDeck(@DestinationVariable String roomId, @Payload Messages.SetCustomDeckMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        if (msg.cards() == null || msg.cards().isEmpty()) return;
+        // Ограничиваем: не более 20 карт, каждая не длиннее 8 символов
+        java.util.List<String> cards = msg.cards().stream()
+                .map(String::strip)
+                .filter(s -> !s.isEmpty() && s.length() <= 8)
+                .distinct()
+                .limit(20)
+                .collect(java.util.stream.Collectors.toList());
+        if (cards.isEmpty()) return;
+        room.setDeck(com.scrumpoker.model.Deck.CUSTOM);
+        room.setCustomCards(cards);
+        room.resetRound();
+        broadcast(room);
+    }
+
+    @MessageMapping("/room/{roomId}/estimate")
+    public void setFinalEstimate(@DestinationVariable String roomId, @Payload Messages.SetFinalEstimateMessage msg) {
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null || !isModerator(room, msg.participantId())) return;
+        if (!room.isRevealed()) return; // фиксируем только после вскрытия
+        String est = msg.estimate() == null ? null : msg.estimate().strip();
+        if (est != null && est.length() > 16) est = est.substring(0, 16);
+        room.setFinalEstimate(est);
         broadcast(room);
     }
 

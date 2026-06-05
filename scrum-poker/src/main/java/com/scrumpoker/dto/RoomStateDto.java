@@ -1,6 +1,5 @@
 package com.scrumpoker.dto;
 
-import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
 
@@ -17,7 +16,8 @@ public record RoomStateDto(
         String currentStory,
         boolean revealed,
         List<ParticipantView> participants,
-        StatsDto stats
+        StatsDto stats,
+        String finalEstimate
 ) {
     public record ParticipantView(String id, String name, String role, boolean online,
                                    boolean hasVoted, String vote) {}
@@ -41,11 +41,12 @@ public record RoomStateDto(
                 room.getId(),
                 room.getName(),
                 room.getDeck().name(),
-                room.getDeck().getCards(),
+                room.getEffectiveCards(),
                 room.getCurrentStory(),
                 revealed,
                 views,
-                stats);
+                stats,
+                room.getFinalEstimate());
     }
 
     /** Статистика раунда: среднее, медиана, распределение, наличие консенсуса. */
