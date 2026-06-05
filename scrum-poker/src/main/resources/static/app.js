@@ -130,11 +130,22 @@ function render(state) {
 
     renderDeckSelector(state);
     renderTimer(state);
+    renderModButtons(state);
     renderTable(state);
     renderDeck(state);
     renderResults(state);
     renderWaitHint(state);
     renderBacklog(state);
+}
+
+// ---------- Кнопки модератора ----------
+function renderModButtons(state) {
+    if (myRole !== "MODERATOR") return;
+    const anyVoted = state.participants.some(p => p.role !== "OBSERVER" && p.hasVoted);
+    // Вскрыть — только если кто-то проголосовал и карты ещё не открыты
+    $("revealBtn").disabled = state.revealed || !anyVoted;
+    // Новый раунд — только если карты вскрыты
+    $("resetBtn").disabled = !state.revealed;
 }
 
 // ---------- Колода ----------
@@ -300,7 +311,7 @@ function renderResults(state) {
         const current = state.finalEstimate ?? suggested;
         html += `<div class="estimate-form">
             <input id="estimateInput" class="estimate-input" type="text" maxlength="16"
-                   value="${escapeHtml(current)}" placeholder="Итоговая оценка" autocomplete="off">
+                   value="${escapeHtml(current)}" placeholder="Оценка" autocomplete="off">
             <button id="confirmEstimateBtn" class="btn btn-success btn-sm">Зафиксировать</button>
         </div>`;
     }
