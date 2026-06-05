@@ -542,7 +542,8 @@ body {
     color: var(--text);
     font: inherit;
     font-size: 14px;
-    width: 120px;
+    width: 100px;
+    flex: 0 0 auto;
     outline: none;
     text-align: center;
     transition: border-color .15s, box-shadow .15s;
