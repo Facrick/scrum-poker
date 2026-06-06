@@ -43,7 +43,9 @@ public class PokerController {
             return Map.of("error", "Комната не найдена");
         }
 
-        // Попытка восстановить существующую сессию (реконнект после обрыва)
+        String cleanName = sanitizeName(msg.name());
+
+        // 1. Восстановить сессию по сохранённому participantId (реконнект)
         if (msg.existingId() != null && !msg.existingId().isBlank()) {
             Participant existing = room.getParticipant(msg.existingId());
             if (existing != null) {
@@ -54,17 +56,35 @@ public class PokerController {
             }
         }
 
+        // 2. existingId не сработал — попробуем найти офлайн-участника с тем же именем
+        //    (сценарий: localStorage очищен, но участник ещё в комнате)
+        Participant byName = room.getParticipants().stream()
+                .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
+                .findFirst().orElse(null);
+        if (byName != null) {
+            byName.setOnline(true);
+            sessions.put(headers.getSessionId(), new String[]{roomId, byName.getId()});
+            broadcast(room);
+            return Map.of("participantId", byName.getId(), "role", byName.getRole().name());
+        }
+
+        // 3. Новый участник — убираем всех офлайн с тем же именем (стale-записи)
+        room.getParticipants().stream()
+                .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
+                .map(Participant::getId)
+                .toList()
+                .forEach(room::removeParticipant);
+
         Participant.Role role = parseRole(msg.role());
         Participant p;
         try {
-            p = roomService.join(room, sanitizeName(msg.name()), role);
+            p = roomService.join(room, cleanName, role);
         } catch (IllegalStateException full) {
             return Map.of("error", full.getMessage());
         }
 
         sessions.put(headers.getSessionId(), new String[]{roomId, p.getId()});
         broadcast(room);
-        // Ответ уходит лично подключившемуся клиенту на /user/queue/me.
         return Map.of("participantId", p.getId(), "role", p.getRole().name());
     }
 
