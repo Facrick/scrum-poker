@@ -1,56 +1,95 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Конфигурация логирования Scrum Poker.
-  Spring Boot подхватывает logback-spring.xml автоматически.
-  Уровни и путь к логам переопределяются через application.properties / env:
-    app.log.path  (по умолчанию ./logs)
-    LOG_LEVEL_APP (по умолчанию INFO) — уровень для пакета com.scrumpoker
+  Логирование Scrum Poker. Spring Boot подхватывает logback-spring.xml автоматически.
+
+  Профили:
+    (по умолчанию)  — человекочитаемый цветной вывод в консоль + текстовый файл с ротацией.
+                      Удобно для локальной разработки.
+    json            — структурированные JSON-логи в stdout И в файл scrum-poker.json.
+                      Файл забирает Fluent Bit и отправляет в OpenSearch.
+                      Активируется через SPRING_PROFILES_ACTIVE=json (см. docker-compose).
+
+  Переопределяется через переменные окружения (logback читает их напрямую):
+    LOG_PATH      (по умолчанию ./logs) — каталог для файлов логов
+    LOG_LEVEL_APP (по умолчанию INFO)   — уровень для пакета com.scrumpoker
 -->
 <configuration>
 
     <!-- Базовые определения Spring Boot: регистрируют конвертеры %clr, %wEx и уровни -->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <property name="LOG_PATH" value="${app.log.path:-logs}"/>
+    <property name="LOG_PATH" value="${LOG_PATH:-logs}"/>
     <property name="APP_LEVEL" value="${LOG_LEVEL_APP:-INFO}"/>
-
-    <!-- Шаблон: время, уровень, поток, логгер, сообщение. Кодировка UTF-8 для кириллицы. -->
     <property name="PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
 
-    <!-- Консоль (в dev — с цветом) -->
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <charset>UTF-8</charset>
-            <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%thread]){faint} %clr(%logger{36}){cyan} - %msg%n</pattern>
-        </encoder>
-    </appender>
+    <!-- ===== Профиль по умолчанию: человекочитаемые логи ===== -->
+    <springProfile name="!json">
 
-    <!-- Файл с ежедневной ротацией и ограничением по размеру -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_PATH}/scrum-poker.log</file>
-        <encoder>
-            <charset>UTF-8</charset>
-            <pattern>${PATTERN}</pattern>
-        </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_PATH}/scrum-poker.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <maxFileSize>10MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>200MB</totalSizeCap>
-        </rollingPolicy>
-    </appender>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <charset>UTF-8</charset>
+                <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%thread]){faint} %clr(%logger{36}){cyan} - %msg%n</pattern>
+            </encoder>
+        </appender>
 
-    <!-- Прикладной пакет: управляемый уровень -->
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_PATH}/scrum-poker.log</file>
+            <encoder>
+                <charset>UTF-8</charset>
+                <pattern>${PATTERN}</pattern>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_PATH}/scrum-poker.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>10MB</maxFileSize>
+                <maxHistory>14</maxHistory>
+                <totalSizeCap>200MB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- ===== Профиль json: структурированные логи для OpenSearch ===== -->
+    <springProfile name="json">
+
+        <!-- JSON в stdout — полезно для docker logs и драйверов логирования -->
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"scrum-poker"}</customFields>
+                <includeMdcKeyName>roomId</includeMdcKeyName>
+                <includeMdcKeyName>participantId</includeMdcKeyName>
+            </encoder>
+        </appender>
+
+        <!-- JSON в файл (по строке на событие) — его тейлит Fluent Bit -->
+        <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_PATH}/scrum-poker.json</file>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"scrum-poker"}</customFields>
+                <includeMdcKeyName>roomId</includeMdcKeyName>
+                <includeMdcKeyName>participantId</includeMdcKeyName>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_PATH}/scrum-poker.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+                <maxFileSize>10MB</maxFileSize>
+                <maxHistory>14</maxHistory>
+                <totalSizeCap>200MB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="JSON_FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- ===== Общие уровни (для обоих профилей) ===== -->
     <logger name="com.scrumpoker" level="${APP_LEVEL}"/>
-
-    <!-- Шумные библиотеки приглушаем -->
     <logger name="org.springframework.web.socket" level="WARN"/>
     <logger name="org.apache.catalina" level="WARN"/>
-
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE"/>
-    </root>
 
 </configuration>

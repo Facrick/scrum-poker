@@ -85,3 +85,40 @@ docker compose up -d --build app
 |-----------------|---------------------------|-----------------------------------------|
 | `ALLOWED_ORIGIN` | `http://localhost:8080`   | Домен приложения (CORS + WebSocket)     |
 | `ROOM_TTL_HOURS` | `8`                       | Через сколько часов удалять комнаты     |
+| `LOG_PATH`       | `./logs`                  | Каталог файлов логов                    |
+| `LOG_LEVEL_APP`  | `INFO`                    | Уровень логов пакета `com.scrumpoker`   |
+| `SPRING_PROFILES_ACTIVE` | —                 | `json` — структурированные JSON-логи    |
+
+---
+
+## Логи и централизованный сбор (OpenSearch)
+
+Приложение умеет писать **структурированные JSON-логи** (профиль `json`,
+включён в `docker-compose.yml`). Опциональный стек сбора логов — OpenSearch +
+OpenSearch Dashboards + Fluent Bit — поднимается отдельным compose-профилем:
+
+```bash
+# Поднять приложение вместе со стеком логирования
+docker compose --profile logging up -d --build
+
+# Dashboards (UI поиска и визуализации логов):
+#   http://localhost:5601
+```
+
+**Как это работает:**
+
+```
+app (JSON в /app/logs/scrum-poker.json) → Fluent Bit → OpenSearch → Dashboards
+```
+
+- Логи приложения пишутся в общий том `app_logs`.
+- `Fluent Bit` тейлит файл и отправляет события в индекс `scrum-poker-logs`.
+- В Dashboards один раз создайте index pattern `scrum-poker-logs*`
+  (Stack Management → Index Patterns), поле времени — `@timestamp`.
+
+> ⚠️ В dev-стеке у OpenSearch **отключена безопасность**
+> (`DISABLE_SECURITY_PLUGIN=true`). Для production включите security-плагин,
+> TLS и аутентификацию, либо используйте управляемый OpenSearch/Elastic.
+
+Без профиля `logging` приложение работает как обычно — логи просто пишутся
+в файл и в stdout (`docker logs`).

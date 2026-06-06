@@ -13,6 +13,8 @@ WORKDIR /app
 # Непривилегированный пользователь
 RUN addgroup -S poker && adduser -S poker -G poker
 COPY --from=build /app/target/*.jar app.jar
+# Каталог логов с правами poker — именованный том унаследует владельца
+RUN mkdir -p /app/logs && chown -R poker:poker /app/logs
 USER poker
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

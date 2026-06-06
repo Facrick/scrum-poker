@@ -23,6 +23,11 @@ services:
       - ROOM_TTL_HOURS=${ROOM_TTL_HOURS:-8}
       - DATABASE_URL=jdbc:postgresql://db:5432/scrumpoker?user=${POSTGRES_USER:-poker}&password=${POSTGRES_PASSWORD}
       - DB_DRIVER=org.postgresql.Driver
+      # JSON-логи в файл /app/logs/scrum-poker.json (их забирает Fluent Bit)
+      - SPRING_PROFILES_ACTIVE=json
+      - LOG_PATH=/app/logs
+    volumes:
+      - app_logs:/app/logs
     expose:
       - "8080"
     depends_on:
@@ -48,5 +53,64 @@ services:
       app:
         condition: service_healthy
 
+  # ───── Стек логирования (опционально) ─────────────────────────
+  # Запуск: docker compose --profile logging up -d
+  # Dashboards: http://localhost:5601
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.0
+    restart: unless-stopped
+    profiles: ["logging"]
+    volumes:
+      - app_logs:/logs
+      - ./logging/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./logging/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+    depends_on:
+      - opensearch
+
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    restart: unless-stopped
+    profiles: ["logging"]
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      # ВНИМАНИЕ: security отключён только для локальной разработки!
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    expose:
+      - "9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.13.0
+    restart: unless-stopped
+    profiles: ["logging"]
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+  app_logs:
+  opensearch_data:
