@@ -5,7 +5,10 @@ import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
 import com.scrumpoker.persistence.RoomRepository;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -13,6 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
+@Epic("Сервисы")
+@Feature("Управление комнатами")
+@DisplayName("RoomService: участники, лимиты, TTL")
 class RoomServiceTest {
 
     private RoomService service;
@@ -24,6 +30,7 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Первый вошедший становится модератором")
     void firstJoinerBecomesModerator() {
         Room room = service.createRoom("Sprint", Deck.FIBONACCI);
         Participant first = service.join(room, "Alice", Participant.Role.PLAYER);
@@ -31,6 +38,7 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Второй участник сохраняет запрошенную роль")
     void secondJoinerKeepsRequestedRole() {
         Room room = service.createRoom("Sprint", Deck.FIBONACCI);
         service.join(room, "Alice", Participant.Role.PLAYER);            // модератор
@@ -39,6 +47,7 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Вход отклоняется при заполненной комнате")
     void joinIsRejectedWhenRoomIsFull() {
         Room room = service.createRoom("Sprint", Deck.FIBONACCI);
         for (int i = 0; i < 100; i++) {
@@ -49,6 +58,7 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Недавно активная комната не удаляется по TTL")
     void evictionKeepsRecentlyActiveRoom() {
         Room room = service.createRoom("Fresh", Deck.FIBONACCI);
         service.evictStaleRooms();
@@ -56,6 +66,7 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Простаивающая дольше TTL комната удаляется")
     void evictionRemovesRoomIdleLongerThanTtl() {
         Room room = service.createRoom("Stale", Deck.FIBONACCI);
         // Сдвигаем последнюю активность далеко в прошлое (имитация простоя > TTL).
@@ -66,6 +77,7 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Счётчик сбоев персистентности стартует с нуля")
     void persistFailureCounterStartsAtZero() {
         assertThat(service.getConsecutivePersistFailures()).isZero();
     }

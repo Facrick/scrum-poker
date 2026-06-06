@@ -1,12 +1,19 @@
 package com.scrumpoker.service;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Epic("Сервисы")
+@Feature("Ограничение частоты запросов")
+@DisplayName("RateLimiter: окна и лимиты")
 class RateLimiterTest {
 
     @Test
+    @DisplayName("Пропускает до лимита, затем блокирует")
     void allowsUpToLimitThenBlocks() {
         RateLimiter rl = new RateLimiter();
         for (int i = 0; i < 5; i++) {
@@ -16,6 +23,7 @@ class RateLimiterTest {
     }
 
     @Test
+    @DisplayName("Разные ключи лимитируются независимо")
     void keysAreIndependent() {
         RateLimiter rl = new RateLimiter();
         assertThat(rl.allow("a", 1, 10_000)).isTrue();
@@ -25,6 +33,7 @@ class RateLimiterTest {
     }
 
     @Test
+    @DisplayName("Окно сбрасывается после истечения")
     void windowResetsAfterExpiry() {
         RateLimiter rl = new RateLimiter();
         assertThat(rl.allow("k", 1, 0)).isTrue();   // окно 0мс — мгновенно истекает
@@ -32,6 +41,7 @@ class RateLimiterTest {
     }
 
     @Test
+    @DisplayName("Эвикция удаляет устаревшие окна")
     void evictRemovesStaleWindows() {
         RateLimiter rl = new RateLimiter();
         rl.allow("k", 1, 10_000);

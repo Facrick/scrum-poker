@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Проваленные проверки",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Сломанные тесты (ошибки выполнения)",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Пропущенные тесты",
+    "matchedStatuses": ["skipped"]
+  },
+  {
+    "name": "Проблемы инфраструктуры",
+    "matchedStatuses": ["broken", "failed"],
+    "messageRegex": ".*(Connection refused|JdbcSQL|DataAccess|Timeout).*"
+  }
+]

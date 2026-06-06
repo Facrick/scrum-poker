@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Конфигурация логирования Scrum Poker.
+  Spring Boot подхватывает logback-spring.xml автоматически.
+  Уровни и путь к логам переопределяются через application.properties / env:
+    app.log.path  (по умолчанию ./logs)
+    LOG_LEVEL_APP (по умолчанию INFO) — уровень для пакета com.scrumpoker
+-->
+<configuration>
+
+    <!-- Базовые определения Spring Boot: регистрируют конвертеры %clr, %wEx и уровни -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="LOG_PATH" value="${app.log.path:-logs}"/>
+    <property name="APP_LEVEL" value="${LOG_LEVEL_APP:-INFO}"/>
+
+    <!-- Шаблон: время, уровень, поток, логгер, сообщение. Кодировка UTF-8 для кириллицы. -->
+    <property name="PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <!-- Консоль (в dev — с цветом) -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%thread]){faint} %clr(%logger{36}){cyan} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Файл с ежедневной ротацией и ограничением по размеру -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/scrum-poker.log</file>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>${PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/scrum-poker.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Прикладной пакет: управляемый уровень -->
+    <logger name="com.scrumpoker" level="${APP_LEVEL}"/>
+
+    <!-- Шумные библиотеки приглушаем -->
+    <logger name="org.springframework.web.socket" level="WARN"/>
+    <logger name="org.apache.catalina" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+
+</configuration>

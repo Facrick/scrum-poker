@@ -1,6 +1,11 @@
 package com.scrumpoker.persistence;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Severity;
+import io.qameta.allure.SeverityLevel;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
@@ -17,6 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @JdbcTest
 @Import(RoomRepository.class)
+@Epic("Персистентность")
+@Feature("Хранилище снимков комнат")
+@Severity(SeverityLevel.BLOCKER)
+@DisplayName("RoomRepository: upsert на реальной БД")
 class RoomRepositoryTest {
 
     @Autowired
@@ -37,6 +46,7 @@ class RoomRepositoryTest {
     }
 
     @Test
+    @DisplayName("Вставка новой записи")
     void insertsNewRow() {
         repository.save("room1", "{\"v\":1}");
         List<String> all = repository.findAll();
@@ -44,6 +54,7 @@ class RoomRepositoryTest {
     }
 
     @Test
+    @DisplayName("Повторный save обновляет запись, не дублируя (регресс MERGE)")
     void upsertUpdatesExistingRowWithoutDuplicating() {
         repository.save("room1", "{\"v\":1}");
         repository.save("room1", "{\"v\":2}");   // тот же room_id — должен обновить, не вставить второй
@@ -55,6 +66,7 @@ class RoomRepositoryTest {
     }
 
     @Test
+    @DisplayName("Удаление записи по room_id")
     void deleteRemovesRow() {
         repository.save("room1", "{}");
         repository.delete("room1");
@@ -62,6 +74,7 @@ class RoomRepositoryTest {
     }
 
     @Test
+    @DisplayName("Пакетное удаление списка комнат")
     void deleteAllRemovesListedRooms() {
         repository.save("a", "{}");
         repository.save("b", "{}");

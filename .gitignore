@@ -1,5 +1,10 @@
 target/
 *.log
+logs/
 .idea/
 *.iml
 .DS_Store
+# Allure
+.allure/
+allure-results/
+allure-report/

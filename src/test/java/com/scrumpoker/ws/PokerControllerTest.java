@@ -7,7 +7,12 @@ import com.scrumpoker.model.Room;
 import com.scrumpoker.persistence.RoomRepository;
 import com.scrumpoker.service.RateLimiter;
 import com.scrumpoker.service.RoomService;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Severity;
+import io.qameta.allure.SeverityLevel;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -22,6 +27,9 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+@Epic("WebSocket")
+@Feature("Контроллер покера")
+@DisplayName("Контроллер покера: авторизация, голоса, реконнект")
 class PokerControllerTest {
 
     private RoomService roomService;
@@ -50,6 +58,8 @@ class PokerControllerTest {
     // ---- Авторизация (P0) ----
 
     @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("Модератор может вскрыть карты")
     void moderatorCanReveal() {
         String alice = join("Alice", "PLAYER", null, "s1");   // первый = модератор
         controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
@@ -57,6 +67,8 @@ class PokerControllerTest {
     }
 
     @Test
+    @Severity(SeverityLevel.BLOCKER)
+    @DisplayName("Игрок не может вскрыть карты")
     void playerCannotReveal() {
         join("Alice", "PLAYER", null, "s1");                  // модератор
         join("Bob", "PLAYER", null, "s2");                    // игрок
@@ -65,6 +77,8 @@ class PokerControllerTest {
     }
 
     @Test
+    @Severity(SeverityLevel.BLOCKER)
+    @DisplayName("Игрок не может выдать себя за модератора через payload")
     void playerCannotImpersonateModeratorViaPayload() {
         String alice = join("Alice", "PLAYER", null, "s1");   // модератор
         join("Bob", "PLAYER", null, "s2");                    // игрок
@@ -74,6 +88,7 @@ class PokerControllerTest {
     }
 
     @Test
+    @DisplayName("Голос привязывается к участнику сессии, а не к payload")
     void voteUsesSessionParticipantNotPayload() {
         join("Alice", "PLAYER", null, "s1");
         String bob = join("Bob", "PLAYER", null, "s2");
@@ -83,6 +98,7 @@ class PokerControllerTest {
     }
 
     @Test
+    @DisplayName("Голос вне текущей колоды отклоняется")
     void voteRejectsValueOutsideDeck() {
         String alice = join("Alice", "PLAYER", null, "s1");
         controller.vote(room.getId(), new Messages.VoteMessage(alice, "999"), session("s1"));
@@ -92,6 +108,8 @@ class PokerControllerTest {
     // ---- Гонка реконнекта (P1) ----
 
     @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("Запоздавший disconnect не гасит переподключившегося участника")
     void staleDisconnectDoesNotKnockOutReconnectedParticipant() {
         String alice = join("Alice", "PLAYER", null, "s1");        // сессия s1
         join("Alice", "PLAYER", alice, "s2");                      // реконнект на s2
@@ -110,6 +128,8 @@ class PokerControllerTest {
     // ---- Конкурентный join (P0/P3) ----
 
     @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("Параллельные входы с уникальными именами все успешны")
     void concurrentJoinsWithUniqueNamesAllSucceed() throws InterruptedException {
         int n = 30;
         ExecutorService pool = Executors.newFixedThreadPool(8);
@@ -137,6 +157,7 @@ class PokerControllerTest {
     }
 
     @Test
+    @DisplayName("Модератор может исключить участника")
     void kickRemovesParticipant() {
         String alice = join("Alice", "PLAYER", null, "s1");   // модератор
         String bob = join("Bob", "PLAYER", null, "s2");

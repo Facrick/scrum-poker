@@ -4,14 +4,21 @@ import com.scrumpoker.model.BacklogItem;
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+@Epic("Персистентность")
+@Feature("Снимок комнаты")
+@DisplayName("RoomSnapshot: сериализация и восстановление")
 class RoomSnapshotTest {
 
     @Test
+    @DisplayName("Round-trip сохраняет основное состояние комнаты")
     void roundTripPreservesCoreState() {
         Room room = new Room("abc12345", "Sprint 42", Deck.POWERS_OF_TWO);
         room.setCurrentStory("Login flow");
@@ -43,6 +50,7 @@ class RoomSnapshotTest {
     }
 
     @Test
+    @DisplayName("null createdAt не вызывает NPE при восстановлении")
     void nullCreatedAtDoesNotThrow() {
         RoomSnapshot snap = new RoomSnapshot(
                 "abc12345", "Room", "FIBONACCI", null, "", false, null, 0,
