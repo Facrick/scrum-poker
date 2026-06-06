@@ -258,8 +258,18 @@ function renderTable(state) {
             slot.textContent = "👁";
         } else if (state.revealed && p.vote != null) {
             slot.classList.add("revealed");
-            slot.textContent = p.vote;
-            slot.style.fontSize = cardFontSize(p.vote, 28);
+            // Corner pips + center value for revealed seat cards
+            const cTL = document.createElement("span");
+            cTL.className = "pcard-corner tl";
+            cTL.textContent = p.vote;
+            const cCenter = document.createElement("span");
+            cCenter.className = "pcard-val";
+            cCenter.textContent = p.vote;
+            cCenter.style.fontSize = cardFontSize(p.vote, 28);
+            const cBR = document.createElement("span");
+            cBR.className = "pcard-corner br";
+            cBR.textContent = p.vote;
+            slot.append(cTL, cCenter, cBR);
         } else if (p.hasVoted) {
             slot.classList.add("voted");
         } else {
@@ -309,13 +319,29 @@ function renderDeck(state) {
             ? (state.participants.find(p => p.id === myId)?.vote === card)
             : (myVote === card);
         btn.className = "pcard" + (isSelected ? " selected" : "");
-        btn.textContent = card;
-        btn.style.fontSize = cardFontSize(card, 19);
         btn.disabled = state.revealed;
+        btn.title = card;
         btn.onclick = () => {
             myVote = card;
             send("vote", { participantId: myId, value: card });
         };
+
+        // Corner pips (top-left & bottom-right) — like real playing cards
+        const cornerTL = document.createElement("span");
+        cornerTL.className = "pcard-corner tl";
+        cornerTL.textContent = card;
+
+        const cornerBR = document.createElement("span");
+        cornerBR.className = "pcard-corner br";
+        cornerBR.textContent = card;
+
+        // Center value (larger)
+        const center = document.createElement("span");
+        center.className = "pcard-val";
+        center.textContent = card;
+        center.style.fontSize = cardFontSize(card, 22);
+
+        btn.append(cornerTL, center, cornerBR);
         deck.appendChild(btn);
     });
     $("deckHint").textContent = state.revealed
