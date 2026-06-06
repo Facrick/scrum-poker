@@ -14,29 +14,47 @@ let backlogOpen = false;    // видимость бэклог-панели
 const joinMode = !!roomId;
 
 // ---------- Лобби ----------
+let lobbyMode = joinMode ? "join" : "create"; // текущий режим вкладки
+
+function switchLobbyTab(mode) {
+    lobbyMode = mode;
+    const isJoin = mode === "join";
+    $("tabCreate").classList.toggle("active", !isJoin);
+    $("tabJoin").classList.toggle("active",   isJoin);
+    $("roomNameField").classList.toggle("hidden",  isJoin);
+    $("roomCodeField").classList.toggle("hidden",  !isJoin);
+    $("roleField").classList.toggle("hidden",      !isJoin);
+    $("primaryBtn").textContent = isJoin ? "Войти в комнату" : "Создать комнату";
+    $("lobbyError").textContent = "";
+}
+
 (function setupLobby() {
     const savedName = localStorage.getItem("sp_name");
     if (savedName) $("nameInput").value = savedName;
 
     // Автовосстановление сессии при обновлении страницы (F5)
-    // Если есть сохранённый participantId и мы в той же комнате — переподключаемся без клика
     const savedPid  = localStorage.getItem("sp_pid");
     const savedRole = localStorage.getItem("sp_role") || "PLAYER";
     if (joinMode && savedName && savedPid) {
         connectAndJoin(savedName, savedRole);
-        return; // не показываем лобби, сразу подключаемся
+        return;
     }
 
+    // Инициализируем табы
     if (joinMode) {
-        $("lobbySub").textContent = "Вас пригласили в комнату — введите имя, чтобы войти";
-        $("roleField").classList.remove("hidden");
-        $("primaryBtn").textContent = "Войти в комнату";
+        switchLobbyTab("join");
+        // Код комнаты из URL уже в roomId — подскажем пользователю
+        if (roomId) $("roomCodeInput").value = roomId;
     } else {
-        $("roomNameField").classList.remove("hidden");
+        switchLobbyTab("create");
     }
+
+    $("tabCreate").addEventListener("click", () => switchLobbyTab("create"));
+    $("tabJoin").addEventListener("click",   () => switchLobbyTab("join"));
 
     $("primaryBtn").addEventListener("click", onPrimary);
-    $("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") onPrimary(); });
+    $("nameInput").addEventListener("keydown",     (e) => { if (e.key === "Enter") onPrimary(); });
+    $("roomCodeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") onPrimary(); });
 })();
 
 async function onPrimary() {
@@ -47,7 +65,7 @@ async function onPrimary() {
 
     $("primaryBtn").disabled = true;
     try {
-        if (!joinMode) {
+        if (lobbyMode === "create") {
             const rawRoomName = $("roomNameInput").value.trim();
             const roomName = rawRoomName || "Покер · " + name;
             const res = await fetch("/api/rooms", {
@@ -57,12 +75,15 @@ async function onPrimary() {
             });
             if (!res.ok) throw new Error();
             roomId = (await res.json()).roomId;
-            // URL обновим после успешного подключения (в onMe), чтобы при ошибке не застрять в join-режиме
+            // URL обновим после успешного подключения (в onMe)
         } else {
+            // join-режим: берём код из поля или из URL
+            const code = $("roomCodeInput").value.trim() || roomId;
+            if (!code) { lobbyError("Введите код комнаты"); $("primaryBtn").disabled = false; return; }
+            roomId = code.toLowerCase();
             const res = await fetch("/api/rooms/" + encodeURIComponent(roomId));
             if (!res.ok) {
-                // Комната не найдена — переключаем в режим создания новой
-                switchToCreateMode("Комната закрыта или истекла. Создайте новую:");
+                switchToCreateMode("Комната не найдена. Проверьте код или создайте новую:");
                 $("primaryBtn").disabled = false;
                 return;
             }
@@ -76,16 +97,12 @@ async function onPrimary() {
 
 function lobbyError(msg) { $("lobbyError").textContent = msg; }
 
-/** Переключает лобби в режим создания комнаты (убирает join-форму, показывает поле названия). */
+/** Переключает лобби в режим создания комнаты. */
 function switchToCreateMode(errorMsg) {
     localStorage.removeItem("sp_pid");
     localStorage.removeItem("sp_role");
     history.replaceState(null, "", "/");
-    // Переключаем UI на создание
-    $("lobbySub").textContent = "Оценка задач командой в реальном времени";
-    $("roleField").classList.add("hidden");
-    $("roomNameField").classList.remove("hidden");
-    $("primaryBtn").textContent = "Создать комнату";
+    switchLobbyTab("create");
     if (errorMsg) lobbyError(errorMsg);
 }
 
@@ -157,9 +174,15 @@ function render(state) {
     if (!myId) return;
 
     $("roomName").textContent = state.roomName;
-    const story = $("storyLabel");
-    if (state.currentStory) { story.textContent = state.currentStory; story.classList.add("active"); }
-    else { story.textContent = "Задача не задана"; story.classList.remove("active"); }
+    const storyLabel = $("storyLabel");
+    const storyChip  = $("storyChip");
+    if (state.currentStory) {
+        storyLabel.textContent = state.currentStory;
+        storyChip.classList.add("active");
+    } else {
+        storyLabel.textContent = "Задача не задана";
+        storyChip.classList.remove("active");
+    }
 
     const online = state.participants.filter(p => p.online).length;
     $("onlineCount").textContent = "👥 " + online;
@@ -468,6 +491,9 @@ function renderBacklog(state) {
         const isDone = !!item.estimate;
         el.className = "backlog-item" + (isActive ? " active" : "") + (isDone ? " done" : "");
 
+        const dot = document.createElement("span");
+        dot.className = "backlog-dot";
+
         const titleEl = document.createElement("span");
         titleEl.className = "backlog-item-title";
         titleEl.textContent = item.title;
@@ -476,7 +502,7 @@ function renderBacklog(state) {
         estEl.className = "backlog-item-est";
         estEl.textContent = item.estimate || "";
 
-        el.append(titleEl, estEl);
+        el.append(dot, titleEl, estEl);
 
         if (myRole === "MODERATOR") {
             el.title = isActive ? "Текущая задача" : "Активировать";

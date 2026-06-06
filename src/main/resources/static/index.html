@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=16">
+    <link rel="stylesheet" href="style.css?v=17">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -15,20 +15,40 @@
 
 <!-- ===== Лобби ===== -->
 <main id="lobby" class="lobby">
+    <!-- Brand hero -->
+    <div class="lobby-hero">
+        <span class="lobby-logo-icon">🃏</span>
+        <div class="brand">Scrum Poker</div>
+        <p class="lobby-tagline">Оценка задач командой · без регистрации · до 100 участников</p>
+    </div>
+
+    <!-- Glass card -->
     <div class="lobby-card">
-        <div class="brand">Scrum&nbsp;Poker</div>
-        <p id="lobbySub" class="lobby-sub">Оценка задач командой в реальном времени</p>
+        <!-- Mode tabs -->
+        <div id="lobbyTabs" class="lobby-tabs">
+            <button id="tabCreate" class="lobby-tab active" type="button">Новая сессия</button>
+            <button id="tabJoin"   class="lobby-tab"        type="button">Войти в комнату</button>
+        </div>
 
         <label class="field">
             <span>Ваше имя</span>
-            <input id="nameInput" type="text" maxlength="40" placeholder="Например, Алиса" autocomplete="new-password">
+            <input id="nameInput" type="text" maxlength="40"
+                   placeholder="Например, Алиса" autocomplete="new-password">
         </label>
 
-        <label class="field hidden" id="roomNameField">
+        <!-- Create-mode fields -->
+        <label class="field" id="roomNameField">
             <span>Название сессии</span>
-            <input id="roomNameInput" type="text" maxlength="60" placeholder="Например, Спринт 42" autocomplete="new-password">
+            <input id="roomNameInput" type="text" maxlength="60"
+                   placeholder="Например, Спринт 42" autocomplete="new-password">
         </label>
 
+        <!-- Join-mode fields -->
+        <label class="field hidden" id="roomCodeField">
+            <span>Код комнаты</span>
+            <input id="roomCodeInput" type="text" maxlength="8"
+                   placeholder="Например, ab3k7m2x" autocomplete="off" spellcheck="false">
+        </label>
         <label class="field hidden" id="roleField">
             <span>Роль</span>
             <select id="roleSelect">
@@ -40,36 +60,47 @@
         <button id="primaryBtn" class="btn btn-primary btn-block">Создать комнату</button>
         <p id="lobbyError" class="form-error"></p>
     </div>
-    <footer class="lobby-foot">До 100 участников в комнате · без регистрации</footer>
 </main>
 
 <!-- ===== Комната ===== -->
 <div id="room" class="room hidden">
+
+    <!-- Topbar: brand | story | controls -->
     <header class="topbar">
         <div class="topbar-left">
-            <div>
+            <span class="topbar-brand">🃏</span>
+            <div class="topbar-name-block">
                 <h1 id="roomName" class="room-title">Комната</h1>
-                <div id="storyLabel" class="room-story">Задача не задана</div>
             </div>
         </div>
+
+        <div class="topbar-center">
+            <div id="storyChip" class="room-story-chip">
+                <span class="story-icon">📌</span>
+                <span id="storyLabel">Задача не задана</span>
+            </div>
+        </div>
+
         <div class="topbar-right">
             <div id="timerDisplay" class="timer-badge hidden">
                 <span id="timerValue">0:00</span>
             </div>
-            <span id="connDot" class="conn-dot" title="Соединение"></span>
             <span id="onlineCount" class="pill">👥 0</span>
-            <button id="toggleBacklogBtn" class="btn btn-ghost" title="Бэклог">📋</button>
-            <button id="copyLinkBtn" class="btn btn-ghost">🔗 Пригласить</button>
+            <span id="connDot" class="conn-dot" title="Соединение"></span>
+            <button id="toggleBacklogBtn" class="btn btn-ghost btn-sm" title="Бэклог">📋</button>
+            <button id="copyLinkBtn" class="btn btn-ghost btn-sm">🔗 <span class="link-text">Пригласить</span></button>
         </div>
     </header>
 
+    <!-- Moderator panel -->
     <section id="moderatorPanel" class="mod-panel hidden">
-        <!-- Строка 1: задача -->
+        <!-- Row 1: task input -->
         <div class="mod-row">
-            <input id="storyInput" type="text" class="mod-input" placeholder="Название задачи → добавит в бэклог" autocomplete="off">
-            <button id="setStoryBtn" class="btn btn-ghost">Задать</button>
+            <input id="storyInput" type="text" class="mod-input"
+                   placeholder="Название задачи → добавит в бэклог" autocomplete="off">
+            <button id="setStoryBtn" class="btn btn-ghost btn-sm">Задать</button>
         </div>
-        <!-- Строка 2: колода + таймер + действия -->
+        <!-- Row 2: deck + timer + actions -->
         <div class="mod-row">
             <select id="deckChange" class="mod-select" title="Колода">
                 <option value="FIBONACCI">Фибоначчи</option>
@@ -79,8 +110,8 @@
             </select>
             <div id="customDeckWrap" class="custom-deck-wrap hidden">
                 <input id="customCardsInput" type="text" class="mod-input" maxlength="120"
-                       placeholder="1, 2, 4, 8, XL, ? (через запятую)" autocomplete="off">
-                <button id="applyCustomDeckBtn" class="btn btn-ghost">Применить</button>
+                       placeholder="1, 2, 4, XL, ? (через запятую)" autocomplete="off">
+                <button id="applyCustomDeckBtn" class="btn btn-ghost btn-sm">Применить</button>
             </div>
             <div class="timer-wrap">
                 <select id="timerSelect" class="mod-select" title="Таймер">
@@ -91,12 +122,12 @@
                     <option value="120">2 мин</option>
                     <option value="180">3 мин</option>
                 </select>
-                <button id="startTimerBtn" class="btn btn-ghost" title="Запустить таймер">▶ Старт</button>
-                <button id="stopTimerBtn" class="btn btn-ghost hidden" title="Остановить таймер">■ Стоп</button>
+                <button id="startTimerBtn" class="btn btn-ghost btn-sm" title="Запустить таймер">▶ Старт</button>
+                <button id="stopTimerBtn"  class="btn btn-ghost btn-sm hidden" title="Остановить">■ Стоп</button>
             </div>
             <span class="mod-spacer"></span>
-            <button id="revealBtn" class="btn btn-success">Вскрыть карты</button>
-            <button id="resetBtn" class="btn btn-secondary">Новый раунд</button>
+            <button id="revealBtn" class="btn btn-success btn-sm">Вскрыть карты</button>
+            <button id="resetBtn"  class="btn btn-secondary btn-sm">↩ Новый раунд</button>
         </div>
     </section>
 
@@ -109,7 +140,7 @@
 
         <aside id="backlogPanel" class="backlog-panel hidden">
             <div class="backlog-header">
-                <span class="backlog-title-bar">📋 Бэклог</span>
+                <span>📋 Бэклог</span>
                 <button id="exportCsvBtn" class="btn btn-ghost btn-sm" title="Экспорт в Excel">⬇ XLS</button>
             </div>
             <div id="backlogList" class="backlog-list"></div>
@@ -124,6 +155,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
