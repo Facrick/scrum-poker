@@ -15,8 +15,17 @@ const joinMode = !!roomId;
 
 // ---------- Лобби ----------
 (function setupLobby() {
-    const saved = localStorage.getItem("sp_name");
-    if (saved) $("nameInput").value = saved;
+    const savedName = localStorage.getItem("sp_name");
+    if (savedName) $("nameInput").value = savedName;
+
+    // Автовосстановление сессии при обновлении страницы (F5)
+    // Если есть сохранённый participantId и мы в той же комнате — переподключаемся без клика
+    const savedPid  = localStorage.getItem("sp_pid");
+    const savedRole = localStorage.getItem("sp_role") || "PLAYER";
+    if (joinMode && savedName && savedPid) {
+        connectAndJoin(savedName, savedRole);
+        return; // не показываем лобби, сразу подключаемся
+    }
 
     if (joinMode) {
         $("lobbySub").textContent = "Вас пригласили в комнату — введите имя, чтобы войти";
@@ -321,8 +330,10 @@ function renderResults(state) {
         html += `<div class="consensus-hero">
             <div class="consensus-hero-value${isPlain ? ' plain' : ''}">${escapeHtml(val)}</div>
             <div class="consensus-hero-label">🎉 Консенсус!</div>
-            ${myRole === 'MODERATOR' ? '<button id="consensusResetBtn" class="btn btn-secondary btn-sm" style="margin-top:8px">Новый раунд</button>' : ''}
         </div>`;
+        if (myRole === "MODERATOR") {
+            html += `<button id="consensusResetBtn" class="btn btn-secondary btn-sm">↩ Новый раунд</button>`;
+        }
     } else {
         // Не консенсус — показываем полную статистику
         html += `<div class="results-metrics">`;
