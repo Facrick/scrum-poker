@@ -2,10 +2,11 @@ package com.scrumpoker.controller;
 
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Room;
+import com.scrumpoker.service.RateLimiter;
 import com.scrumpoker.service.RoomService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -13,17 +14,29 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/rooms")
 public class RoomController {
 
-    private final RoomService roomService;
+    // Не более 20 создаваемых комнат с одного IP за минуту.
+    private static final int CREATE_LIMIT = 20;
+    private static final long CREATE_WINDOW_MS = 60_000;
 
-    public RoomController(RoomService roomService) {
+    private final RoomService roomService;
+    private final RateLimiter rateLimiter;
+
+    public RoomController(RoomService roomService, RateLimiter rateLimiter) {
         this.roomService = roomService;
+        this.rateLimiter = rateLimiter;
     }
 
     public record CreateRoomRequest(@Size(max = 80) String name, String deck) {}
     public record RoomResponse(String roomId, String roomName, String deck) {}
 
     @PostMapping
-    public RoomResponse create(@RequestBody(required = false) CreateRoomRequest req) {
+    public RoomResponse create(@RequestBody(required = false) CreateRoomRequest req,
+                               HttpServletRequest http) {
+        String ip = clientIp(http);
+        if (!rateLimiter.allow("create:" + ip, CREATE_LIMIT, CREATE_WINDOW_MS)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Слишком много комнат создано. Попробуйте через минуту.");
+        }
         Deck deck = Deck.FIBONACCI;
         String name = null;
         if (req != null) {
@@ -43,5 +56,15 @@ public class RoomController {
         Room room = roomService.getRoom(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Комната не найдена"));
         return new RoomResponse(room.getId(), room.getName(), room.getDeck().name());
+    }
+
+    /** IP клиента с учётом обратного прокси (Railway/nginx ставят X-Forwarded-For). */
+    private static String clientIp(HttpServletRequest http) {
+        String fwd = http.getHeader("X-Forwarded-For");
+        if (fwd != null && !fwd.isBlank()) {
+            int comma = fwd.indexOf(',');
+            return (comma > 0 ? fwd.substring(0, comma) : fwd).strip();
+        }
+        return http.getRemoteAddr();
     }
 }

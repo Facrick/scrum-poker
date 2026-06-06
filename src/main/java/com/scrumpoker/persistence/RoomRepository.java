@@ -14,13 +14,28 @@ public class RoomRepository {
         this.jdbc = jdbc;
     }
 
-    /** Сохранить/обновить снимок комнаты (upsert). */
+    /**
+     * Сохранить/обновить снимок комнаты (upsert).
+     * Реализовано через UPDATE + INSERT вместо MERGE/ON CONFLICT, чтобы работать
+     * одинаково на H2 (локально/тесты) и PostgreSQL (прод). Предыдущая версия
+     * использовала H2-специфичный `MERGE ... KEY`, который падал на PostgreSQL.
+     */
     public void save(String roomId, String snapshotJson) {
-        jdbc.update("""
-                MERGE INTO room_snapshots (room_id, snapshot, updated_at)
-                KEY (room_id)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                """, roomId, snapshotJson);
+        int updated = jdbc.update(
+                "UPDATE room_snapshots SET snapshot = ?, updated_at = CURRENT_TIMESTAMP WHERE room_id = ?",
+                snapshotJson, roomId);
+        if (updated == 0) {
+            try {
+                jdbc.update(
+                        "INSERT INTO room_snapshots (room_id, snapshot, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                        roomId, snapshotJson);
+            } catch (org.springframework.dao.DuplicateKeyException race) {
+                // Конкурентная вставка тем же room_id успела первой — повторяем UPDATE.
+                jdbc.update(
+                        "UPDATE room_snapshots SET snapshot = ?, updated_at = CURRENT_TIMESTAMP WHERE room_id = ?",
+                        snapshotJson, roomId);
+            }
+        }
     }
 
     /** Загрузить все снимки (при старте сервера). */

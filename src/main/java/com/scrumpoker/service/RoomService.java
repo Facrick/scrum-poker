@@ -32,15 +32,17 @@ public class RoomService {
     private final SecureRandom random = new SecureRandom();
     private final ObjectMapper objectMapper;
     private final RoomRepository roomRepository;
+    private final RateLimiter rateLimiter;
 
     @Value("${app.room-ttl-hours:8}")
     private int roomTtlHours;
 
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
 
-    public RoomService(ObjectMapper objectMapper, RoomRepository roomRepository) {
+    public RoomService(ObjectMapper objectMapper, RoomRepository roomRepository, RateLimiter rateLimiter) {
         this.objectMapper = objectMapper;
         this.roomRepository = roomRepository;
+        this.rateLimiter = rateLimiter;
     }
 
     /** Загрузить все комнаты из БД при старте сервера. */
@@ -86,14 +88,29 @@ public class RoomService {
         return p;
     }
 
+    /** Сколько раз подряд не удалось сохранить в БД — для диагностики деградации персистентности. */
+    private final java.util.concurrent.atomic.AtomicInteger persistFailures =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     /** Сохранить снимок комнаты в БД. Вызывается при каждом broadcast(). */
     public void persistRoom(Room room) {
         try {
             String json = objectMapper.writeValueAsString(RoomSnapshot.from(room));
             roomRepository.save(room.getId(), json);
+            persistFailures.set(0);
         } catch (Exception e) {
-            log.warn("Не удалось сохранить комнату {} в БД: {}", room.getId(), e.getMessage());
+            int n = persistFailures.incrementAndGet();
+            // Раньше ошибки молча гасились на WARN — потеря персистентности оставалась незамеченной.
+            // Теперь логируем на ERROR и считаем подряд идущие сбои.
+            log.error("Не удалось сохранить комнату {} в БД (подряд сбоев: {}): {}",
+                    room.getId(), n, e.getMessage());
+            if (n == 1) log.error("Полная трассировка первого сбоя персистентности:", e);
         }
+    }
+
+    /** Число подряд идущих сбоев записи в БД (0 — последняя запись успешна). */
+    public int getConsecutivePersistFailures() {
+        return persistFailures.get();
     }
 
     public void removeEmptyRoom(Room room) {
@@ -101,13 +118,16 @@ public class RoomService {
         roomRepository.delete(room.getId());
     }
 
-    /** Каждые 30 минут удаляет комнаты старше roomTtlHours. */
+    /**
+     * Каждые 30 минут удаляет комнаты, в которых не было активности дольше roomTtlHours.
+     * Раньше отсчёт шёл от createdAt — активная комната могла быть удалена прямо во время сессии.
+     */
     @Scheduled(fixedDelay = 30 * 60 * 1000)
     public void evictStaleRooms() {
         Instant cutoff = Instant.now().minus(roomTtlHours, ChronoUnit.HOURS);
         List<String> toRemove = new ArrayList<>();
         rooms.values().removeIf(room -> {
-            if (room.getCreatedAt().isBefore(cutoff)) {
+            if (room.getLastActivityAt().isBefore(cutoff)) {
                 toRemove.add(room.getId());
                 return true;
             }
@@ -117,6 +137,8 @@ public class RoomService {
             roomRepository.deleteAll(toRemove);
             log.info("Удалено {} устаревших комнат", toRemove.size());
         }
+        // Подчищаем устаревшие окна rate-limiter, чтобы карта не росла.
+        rateLimiter.evictOlderThan(60 * 60 * 1000L);
     }
 
     private String generateId() {

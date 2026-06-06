@@ -22,6 +22,7 @@ public class Room {
     private final List<BacklogItem> backlog = new CopyOnWriteArrayList<>();
     private volatile String activeItemId = null;
     private Instant createdAt = Instant.now();
+    private volatile Instant lastActivityAt = Instant.now();
     private final Map<String, Participant> participants = new ConcurrentHashMap<>();
 
     public Room(String id, String name, Deck deck) {
@@ -63,6 +64,9 @@ public class Room {
     public boolean isRevealed() { return revealed; }
     public void setRevealed(boolean revealed) { this.revealed = revealed; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getLastActivityAt() { return lastActivityAt; }
+    /** Отметить активность комнаты (вызывается при каждом broadcast). */
+    public void touch() { this.lastActivityAt = Instant.now(); }
 
     public Collection<Participant> getParticipants() { return participants.values(); }
     public Participant getParticipant(String id) { return participants.get(id); }

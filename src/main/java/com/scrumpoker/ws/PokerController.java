@@ -1,36 +1,41 @@
 package com.scrumpoker.ws;
 
 import com.scrumpoker.dto.RoomStateDto;
+import com.scrumpoker.model.BacklogItem;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
+import com.scrumpoker.service.RateLimiter;
 import com.scrumpoker.service.RoomService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
-
-import com.scrumpoker.model.BacklogItem;
 
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 @Controller
 public class PokerController {
 
+    // Не более 60 WS-сообщений на сессию за 10 секунд (защита от флуда голосами/таймером).
+    private static final int WS_LIMIT = 60;
+    private static final long WS_WINDOW_MS = 10_000;
+
     private final RoomService roomService;
     private final SimpMessagingTemplate messaging;
+    private final RateLimiter rateLimiter;
 
-    // sessionId -> (roomId, participantId) для корректной обработки отключений.
+    // sessionId -> (roomId, participantId) для авторизации и обработки отключений.
     private final Map<String, String[]> sessions = new ConcurrentHashMap<>();
 
-    public PokerController(RoomService roomService, SimpMessagingTemplate messaging) {
+    public PokerController(RoomService roomService, SimpMessagingTemplate messaging, RateLimiter rateLimiter) {
         this.roomService = roomService;
         this.messaging = messaging;
+        this.rateLimiter = rateLimiter;
     }
 
     @MessageMapping("/room/{roomId}/join")
@@ -42,87 +47,95 @@ public class PokerController {
         if (room == null) {
             return Map.of("error", "Комната не найдена");
         }
+        String sessionId = headers.getSessionId();
+        if (!rateLimiter.allow("ws:" + sessionId, WS_LIMIT, WS_WINDOW_MS)) {
+            return Map.of("error", "Слишком много запросов");
+        }
 
         String cleanName = sanitizeName(msg.name());
 
-        // 1. Восстановить сессию по сохранённому participantId (реконнект)
-        if (msg.existingId() != null && !msg.existingId().isBlank()) {
-            Participant existing = room.getParticipant(msg.existingId());
-            if (existing != null) {
-                existing.setOnline(true);
-                sessions.put(headers.getSessionId(), new String[]{roomId, existing.getId()});
-                broadcast(room);
-                return Map.of("participantId", existing.getId(), "role", existing.getRole().name());
+        // Вся логика find-or-create синхронизирована по комнате, чтобы два
+        // одновременных join'а не создали дубль и не получили один participantId.
+        synchronized (room) {
+            // 1. Реконнект по сохранённому participantId.
+            if (msg.existingId() != null && !msg.existingId().isBlank()) {
+                Participant existing = room.getParticipant(msg.existingId());
+                if (existing != null) {
+                    bindSession(sessionId, room, existing);
+                    broadcast(room);
+                    return Map.of("participantId", existing.getId(), "role", existing.getRole().name());
+                }
             }
-        }
 
-        // 2. existingId не сработал — попробуем найти офлайн-участника с тем же именем
-        //    (сценарий: localStorage очищен, но участник ещё в комнате)
-        Participant byName = room.getParticipants().stream()
-                .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
-                .findFirst().orElse(null);
-        if (byName != null) {
-            byName.setOnline(true);
-            sessions.put(headers.getSessionId(), new String[]{roomId, byName.getId()});
+            // 2. existingId не сработал — офлайн-участник с тем же именем (localStorage очищен).
+            Participant byName = room.getParticipants().stream()
+                    .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
+                    .findFirst().orElse(null);
+            if (byName != null) {
+                bindSession(sessionId, room, byName);
+                broadcast(room);
+                return Map.of("participantId", byName.getId(), "role", byName.getRole().name());
+            }
+
+            // 3. Новый участник — убираем stale-записи офлайн с тем же именем.
+            room.getParticipants().stream()
+                    .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
+                    .map(Participant::getId)
+                    .toList()
+                    .forEach(room::removeParticipant);
+
+            Participant.Role role = parseRole(msg.role());
+            Participant p;
+            try {
+                p = roomService.join(room, cleanName, role);
+            } catch (IllegalStateException full) {
+                return Map.of("error", full.getMessage());
+            }
+            bindSession(sessionId, room, p);
             broadcast(room);
-            return Map.of("participantId", byName.getId(), "role", byName.getRole().name());
+            return Map.of("participantId", p.getId(), "role", p.getRole().name());
         }
-
-        // 3. Новый участник — убираем всех офлайн с тем же именем (стale-записи)
-        room.getParticipants().stream()
-                .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
-                .map(Participant::getId)
-                .toList()
-                .forEach(room::removeParticipant);
-
-        Participant.Role role = parseRole(msg.role());
-        Participant p;
-        try {
-            p = roomService.join(room, cleanName, role);
-        } catch (IllegalStateException full) {
-            return Map.of("error", full.getMessage());
-        }
-
-        sessions.put(headers.getSessionId(), new String[]{roomId, p.getId()});
-        broadcast(room);
-        return Map.of("participantId", p.getId(), "role", p.getRole().name());
     }
 
     @MessageMapping("/room/{roomId}/vote")
-    public void vote(@DestinationVariable String roomId, @Payload Messages.VoteMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
+    public void vote(@DestinationVariable String roomId, @Payload Messages.VoteMessage msg,
+                     SimpMessageHeaderAccessor headers) {
+        Room room = resolve(roomId, headers);
         if (room == null) return;
-        Participant p = room.getParticipant(msg.participantId());
+        // Голосует только тот, кто привязан к этой сессии — payload.participantId не доверяем.
+        Participant p = actor(room, headers);
         if (p == null || p.getRole() == Participant.Role.OBSERVER || room.isRevealed()) return;
-        // Голос принимается только если значение есть в текущей колоде.
         if (!room.getEffectiveCards().contains(msg.value())) return;
         p.setVote(msg.value());
         broadcast(room);
     }
 
     @MessageMapping("/room/{roomId}/reveal")
-    public void reveal(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void reveal(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
+                       SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         room.setRevealed(true);
         broadcast(room);
     }
 
     @MessageMapping("/room/{roomId}/reset")
-    public void reset(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void reset(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
+                      SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         room.resetRound();
         broadcast(room);
     }
 
     @MessageMapping("/room/{roomId}/story")
-    public void setStory(@DestinationVariable String roomId, @Payload Messages.SetStoryMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void setStory(@DestinationVariable String roomId, @Payload Messages.SetStoryMessage msg,
+                         SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         String title = msg.story() == null ? "" : msg.story().strip();
         if (title.isEmpty()) return;
-        // Добавляем задачу в бэклог и сразу активируем
+        if (title.length() > 120) title = title.substring(0, 120);
         BacklogItem item = new BacklogItem(title);
         if (room.getBacklog().size() < 200) room.getBacklog().add(item);
         room.setActiveItemId(item.getId());
@@ -132,28 +145,28 @@ public class PokerController {
     }
 
     @MessageMapping("/room/{roomId}/deck")
-    public void setDeck(@DestinationVariable String roomId, @Payload Messages.SetDeckMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId()) || msg.deck() == null) return;
+    public void setDeck(@DestinationVariable String roomId, @Payload Messages.SetDeckMessage msg,
+                        SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.deck() == null) return;
         com.scrumpoker.model.Deck newDeck;
         try {
             newDeck = com.scrumpoker.model.Deck.valueOf(msg.deck().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return; // неизвестная колода — игнорируем
+            return;
         }
-        // Нельзя переключиться на CUSTOM через этот хендлер — только через /customdeck
         if (newDeck == com.scrumpoker.model.Deck.CUSTOM) return;
         room.setDeck(newDeck);
-        room.resetRound(); // прежние голоса не относятся к новой колоде
+        room.resetRound();
         broadcast(room);
     }
 
     @MessageMapping("/room/{roomId}/customdeck")
-    public void setCustomDeck(@DestinationVariable String roomId, @Payload Messages.SetCustomDeckMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void setCustomDeck(@DestinationVariable String roomId, @Payload Messages.SetCustomDeckMessage msg,
+                              SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         if (msg.cards() == null || msg.cards().isEmpty()) return;
-        // Ограничиваем: не более 20 карт, каждая не длиннее 8 символов
         java.util.List<String> cards = msg.cards().stream()
                 .map(String::strip)
                 .filter(s -> !s.isEmpty() && s.length() <= 8)
@@ -168,14 +181,13 @@ public class PokerController {
     }
 
     @MessageMapping("/room/{roomId}/estimate")
-    public void setFinalEstimate(@DestinationVariable String roomId, @Payload Messages.SetFinalEstimateMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
-        if (!room.isRevealed()) return;
+    public void setFinalEstimate(@DestinationVariable String roomId, @Payload Messages.SetFinalEstimateMessage msg,
+                                 SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || !room.isRevealed()) return;
         String rawEst = msg.estimate() == null ? null : msg.estimate().strip();
         final String est = (rawEst != null && rawEst.length() > 16) ? rawEst.substring(0, 16) : rawEst;
         room.setFinalEstimate(est);
-        // Сохраняем оценку в активный элемент бэклога
         if (est != null && room.getActiveItemId() != null) {
             room.getBacklog().stream()
                     .filter(i -> i.getId().equals(room.getActiveItemId()))
@@ -188,9 +200,10 @@ public class PokerController {
     // ---- Таймер ----
 
     @MessageMapping("/room/{roomId}/timer/start")
-    public void startTimer(@DestinationVariable String roomId, @Payload Messages.StartTimerMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void startTimer(@DestinationVariable String roomId, @Payload Messages.StartTimerMessage msg,
+                           SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         if (msg.seconds() <= 0 || msg.seconds() > 600) return;
         room.setTimerSeconds(msg.seconds());
         room.setTimerStartedAt(Instant.now());
@@ -198,9 +211,10 @@ public class PokerController {
     }
 
     @MessageMapping("/room/{roomId}/timer/stop")
-    public void stopTimer(@DestinationVariable String roomId, @Payload Messages.StopTimerMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void stopTimer(@DestinationVariable String roomId, @Payload Messages.StopTimerMessage msg,
+                          SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         room.setTimerStartedAt(null);
         broadcast(room);
     }
@@ -208,9 +222,10 @@ public class PokerController {
     // ---- Бэклог ----
 
     @MessageMapping("/room/{roomId}/backlog/add")
-    public void addBacklogItem(@DestinationVariable String roomId, @Payload Messages.AddBacklogItemMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void addBacklogItem(@DestinationVariable String roomId, @Payload Messages.AddBacklogItemMessage msg,
+                               SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
         if (msg.title() == null || msg.title().isBlank()) return;
         String title = msg.title().strip();
         if (title.length() > 120) title = title.substring(0, 120);
@@ -220,18 +235,20 @@ public class PokerController {
     }
 
     @MessageMapping("/room/{roomId}/backlog/remove")
-    public void removeBacklogItem(@DestinationVariable String roomId, @Payload Messages.RemoveBacklogItemMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void removeBacklogItem(@DestinationVariable String roomId, @Payload Messages.RemoveBacklogItemMessage msg,
+                                  SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.itemId() == null) return;
         room.getBacklog().removeIf(i -> i.getId().equals(msg.itemId()));
         if (msg.itemId().equals(room.getActiveItemId())) room.setActiveItemId(null);
         broadcast(room);
     }
 
     @MessageMapping("/room/{roomId}/backlog/activate")
-    public void activateBacklogItem(@DestinationVariable String roomId, @Payload Messages.ActivateBacklogItemMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void activateBacklogItem(@DestinationVariable String roomId, @Payload Messages.ActivateBacklogItemMessage msg,
+                                    SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.itemId() == null) return;
         BacklogItem item = room.getBacklog().stream()
                 .filter(i -> i.getId().equals(msg.itemId()))
                 .findFirst().orElse(null);
@@ -243,10 +260,16 @@ public class PokerController {
     }
 
     @MessageMapping("/room/{roomId}/kick")
-    public void kick(@DestinationVariable String roomId, @Payload Messages.KickMessage msg) {
-        Room room = roomService.getRoom(roomId).orElse(null);
-        if (room == null || !isModerator(room, msg.participantId())) return;
+    public void kick(@DestinationVariable String roomId, @Payload Messages.KickMessage msg,
+                     SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.targetId() == null) return;
+        Participant target = room.getParticipant(msg.targetId());
         room.removeParticipant(msg.targetId());
+        // Снимаем привязку сессии исключённого, чтобы он не управлял дальше.
+        if (target != null && target.getSessionId() != null) {
+            sessions.remove(target.getSessionId());
+        }
         broadcast(room);
     }
 
@@ -257,21 +280,49 @@ public class PokerController {
         roomService.getRoom(info[0]).ifPresent(room -> {
             Participant p = room.getParticipant(info[1]);
             if (p == null) return;
-            // Помечаем офлайн — не удаляем, чтобы реконнект восстановил сессию.
-            // Комната удаляется по TTL (evictStaleRooms) или когда все офлайн надолго.
-            p.setOnline(false);
-            broadcast(room);
+            // Гасим офлайн только если это всё ещё ТЕКУЩАЯ сессия участника.
+            // Иначе запоздавший disconnect старой сессии погасил бы уже переподключившегося.
+            if (sessionId.equals(p.getSessionId())) {
+                p.setOnline(false);
+                p.setSessionId(null);
+                broadcast(room);
+            }
         });
     }
 
-    private void broadcast(Room room) {
-        roomService.persistRoom(room);
-        messaging.convertAndSend("/topic/room/" + room.getId(), RoomStateDto.from(room));
+    // ---- Вспомогательные ----
+
+    private void bindSession(String sessionId, Room room, Participant p) {
+        p.setOnline(true);
+        p.setSessionId(sessionId);
+        sessions.put(sessionId, new String[]{room.getId(), p.getId()});
     }
 
-    private boolean isModerator(Room room, String participantId) {
-        Participant p = room.getParticipant(participantId);
-        return p != null && p.getRole() == Participant.Role.MODERATOR;
+    /** Резолвит комнату и применяет WS-rate-limit. null — если нет комнаты или лимит превышен. */
+    private Room resolve(String roomId, SimpMessageHeaderAccessor headers) {
+        if (!rateLimiter.allow("ws:" + headers.getSessionId(), WS_LIMIT, WS_WINDOW_MS)) return null;
+        return roomService.getRoom(roomId).orElse(null);
+    }
+
+    /** Участник, привязанный к текущей сессии в данной комнате (источник истины для авторизации). */
+    private Participant actor(Room room, SimpMessageHeaderAccessor headers) {
+        String[] info = sessions.get(headers.getSessionId());
+        if (info == null || !info[0].equals(room.getId())) return null;
+        return room.getParticipant(info[1]);
+    }
+
+    /** Возвращает комнату только если сессия принадлежит модератору; иначе null. */
+    private Room requireModerator(String roomId, SimpMessageHeaderAccessor headers) {
+        Room room = resolve(roomId, headers);
+        if (room == null) return null;
+        Participant p = actor(room, headers);
+        return (p != null && p.getRole() == Participant.Role.MODERATOR) ? room : null;
+    }
+
+    private void broadcast(Room room) {
+        room.touch();
+        roomService.persistRoom(room);
+        messaging.convertAndSend("/topic/room/" + room.getId(), RoomStateDto.from(room));
     }
 
     private Participant.Role parseRole(String role) {
@@ -283,9 +334,25 @@ public class PokerController {
         }
     }
 
+    /**
+     * Чистит имя: убирает управляющие символы, RTL/LTR-override и zero-width,
+     * схлопывает пробелы, ограничивает длину.
+     */
     private String sanitizeName(String name) {
         if (name == null || name.isBlank()) return "Аноним";
-        String trimmed = name.strip();
-        return trimmed.length() > 40 ? trimmed.substring(0, 40) : trimmed;
+        StringBuilder sb = new StringBuilder(name.length());
+        name.codePoints().forEach(cp -> {
+            int type = Character.getType(cp);
+            boolean control = type == Character.CONTROL || type == Character.FORMAT
+                    || type == Character.PRIVATE_USE || type == Character.SURROGATE;
+            boolean bidi = (cp >= 0x202A && cp <= 0x202E)   // LRE..RLO
+                    || (cp >= 0x2066 && cp <= 0x2069)        // LRI..PDI
+                    || cp == 0x200E || cp == 0x200F          // LRM/RLM
+                    || cp == 0xFEFF || cp == 0x200B;         // BOM / zero-width space
+            if (!control && !bidi) sb.appendCodePoint(cp);
+        });
+        String cleaned = sb.toString().replaceAll("\\s+", " ").strip();
+        if (cleaned.isBlank()) return "Аноним";
+        return cleaned.length() > 40 ? cleaned.substring(0, 40) : cleaned;
     }
 }

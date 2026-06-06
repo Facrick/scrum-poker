@@ -6,6 +6,9 @@ public class Participant {
     private volatile Role role;
     private volatile String vote;     // null = не голосовал в текущем раунде
     private volatile boolean online = true;
+    // Текущая WS-сессия владельца. Используется для авторизации действий и
+    // корректной обработки реконнектов (старый disconnect не должен гасить новую сессию).
+    private volatile String sessionId;
 
     public Participant(String id, String name, Role role) {
         this.id = id;
@@ -22,6 +25,8 @@ public class Participant {
     public void setVote(String vote) { this.vote = vote; }
     public boolean isOnline() { return online; }
     public void setOnline(boolean online) { this.online = online; }
+    public String getSessionId() { return sessionId; }
+    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
 
     public enum Role { MODERATOR, PLAYER, OBSERVER }
 }

@@ -62,7 +62,8 @@ public record RoomSnapshot(
         Deck deckEnum;
         try { deckEnum = Deck.valueOf(deck); } catch (Exception e) { deckEnum = Deck.FIBONACCI; }
 
-        Room room = new Room(id, name, deckEnum, Instant.ofEpochMilli(createdAt));
+        Instant created = createdAt != null ? Instant.ofEpochMilli(createdAt) : Instant.now();
+        Room room = new Room(id, name, deckEnum, created);
         room.setCustomCards(customCards != null ? customCards : List.of());
         room.setCurrentStory(currentStory);
         // Не восстанавливаем revealed и timer — новый раунд начнётся чистым
