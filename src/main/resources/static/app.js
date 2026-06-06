@@ -378,80 +378,84 @@ function renderResults(state) {
     if (!state.revealed || !state.stats) { el.classList.add("hidden"); el.innerHTML = ""; return; }
     el.classList.remove("hidden");
     const s = state.stats;
+    const isMod   = myRole === "MODERATOR";
+    const isFixed = state.finalEstimate != null;
     let html = "";
 
-    // Итоговая оценка (зафиксированная) — сверху если есть
-    if (state.finalEstimate != null) {
-        html += `<div class="final-estimate">✅ Итоговая оценка: <b>${escapeHtml(state.finalEstimate)}</b></div>`;
-    }
-
-    // Консенсус — показываем большое число-герой вместо трёх одинаковых метрик
     if (s.consensus) {
+        // ── Консенсус ──────────────────────────────────────────────
         const val = Object.keys(s.distribution)[0];
         const isPlain = /[^\x00-\x7F]/.test(val) || isNaN(parseFloat(val));
+
         html += `<div class="consensus-hero">
             <div class="consensus-hero-value${isPlain ? ' plain' : ''}">${escapeHtml(val)}</div>
-            <div class="consensus-hero-label">🎉 Консенсус!</div>
+            <div class="consensus-hero-label">Консенсус</div>
         </div>`;
-        if (myRole === "MODERATOR") {
-            html += `<button id="consensusResetBtn" class="btn btn-secondary btn-sm">↩ Новый раунд</button>`;
+
+        if (isFixed) {
+            html += `<div class="estimate-locked">✓ Зафиксировано: <strong>${escapeHtml(state.finalEstimate)}</strong></div>`;
         }
+
+        if (isMod) {
+            html += `<div class="results-actions">`;
+            if (!isFixed) {
+                html += `<button id="confirmEstimateBtn" class="btn btn-success" data-val="${escapeHtml(val)}">Зафиксировать</button>`;
+                html += `<button id="revoteBtn" class="btn btn-ghost">Переголосовать</button>`;
+            } else {
+                html += `<button id="consensusResetBtn" class="btn btn-secondary">Новый раунд</button>`;
+            }
+            html += `</div>`;
+        }
+
     } else {
-        // Не консенсус — показываем полную статистику
-        html += `<div class="results-metrics">`;
-        if (s.average != null) html += metric("Среднее", round(s.average));
-        if (s.median  != null) html += metric("Медиана", round(s.median));
+        // ── Нет консенсуса ─────────────────────────────────────────
+        const suggested = s.average != null ? String(round(s.average)) : null;
+
         const chips = Object.entries(s.distribution)
             .sort((a, b) => b[1] - a[1])
-            .map(([k, v]) => `<span class="chip">${escapeHtml(k)} <b>×${v}</b></span>`).join("");
-        const votesLabel = s.average == null ? "Распределение голосов" : "Голоса";
-        if (chips) html += `<div class="metric"><div class="label">${votesLabel}</div><div class="dist">${chips}</div></div>`;
-        html += `</div>`;
-    }
+            .map(([k, v]) => `<span class="vote-chip">
+                <span class="vote-chip-val">${escapeHtml(k)}</span>
+                <span class="vote-chip-count">×${v}</span>
+            </span>`).join("");
 
-    // Кнопка переголосовать — только при не-консенсусе, только модератору
-    if (myRole === "MODERATOR" && !s.consensus) {
-        html += `<button id="revoteBtn" class="btn btn-ghost btn-sm" style="align-self:center">🔄 Переголосовать</button>`;
-    }
-
-    // Форма фиксации оценки для модератора
-    if (myRole === "MODERATOR") {
-        const suggested = s.consensus
-            ? Object.keys(s.distribution)[0]
-            : (s.average != null ? String(round(s.average)) : "");
-        const current = state.finalEstimate ?? suggested;
-        const isFixed = state.finalEstimate != null;
-        const btnLabel = isFixed ? "Изменить" : "Зафиксировать";
-        const btnClass = isFixed ? "btn-secondary" : "btn-success";
-        html += `<div class="estimate-form">
-            <input id="estimateInput" class="estimate-input" type="text" maxlength="16"
-                   value="${escapeHtml(current)}" placeholder="Оценка" autocomplete="off">
-            <button id="confirmEstimateBtn" class="btn ${btnClass} btn-sm">${btnLabel}</button>
+        html += `<div class="no-consensus-header">
+            <span class="no-consensus-label">Нет консенсуса</span>
+            ${s.average != null ? `<span class="no-consensus-avg">среднее <strong>${round(s.average)}</strong></span>` : ""}
         </div>`;
+
+        if (chips) html += `<div class="votes-dist">${chips}</div>`;
+
+        if (isFixed) {
+            html += `<div class="estimate-locked">✓ Зафиксировано: <strong>${escapeHtml(state.finalEstimate)}</strong></div>`;
+        }
+
+        if (isMod) {
+            html += `<div class="results-actions">`;
+            if (!isFixed) {
+                if (suggested) html += `<button id="confirmEstimateBtn" class="btn btn-success" data-val="${escapeHtml(suggested)}">Принять ${escapeHtml(suggested)}</button>`;
+                html += `<button id="revoteBtn" class="btn btn-ghost">Переголосовать</button>`;
+            } else {
+                html += `<button id="revoteBtn" class="btn btn-ghost">Переголосовать</button>`;
+                html += `<button id="consensusResetBtn" class="btn btn-secondary">Новый раунд</button>`;
+            }
+            html += `</div>`;
+        }
     }
 
     el.innerHTML = html;
 
-    if (myRole === "MODERATOR") {
-        const consensusResetBtn = $("consensusResetBtn");
-        if (consensusResetBtn) {
-            consensusResetBtn.addEventListener("click", () => send("reset", { participantId: myId }));
-        }
-        const revoteBtn = $("revoteBtn");
-        if (revoteBtn) {
-            revoteBtn.addEventListener("click", () => send("reset", { participantId: myId }));
-        }
-        const confirmBtn = $("confirmEstimateBtn");
-        if (confirmBtn) {
-            confirmBtn.addEventListener("click", () => {
-                const val = $("estimateInput").value.trim();
-                if (val) send("estimate", { participantId: myId, estimate: val });
-            });
-            $("estimateInput").addEventListener("keydown", e => {
-                if (e.key === "Enter") confirmBtn.click();
-            });
-        }
+    // ── Привязка кнопок ────────────────────────────────────────────
+    const confirmBtn = $("confirmEstimateBtn");
+    if (confirmBtn) {
+        confirmBtn.addEventListener("click", () => {
+            const val = confirmBtn.dataset.val;
+            if (val) send("estimate", { participantId: myId, estimate: val });
+        });
     }
+    const revoteBtn = $("revoteBtn");
+    if (revoteBtn) revoteBtn.addEventListener("click", () => send("reset", { participantId: myId }));
+    const resetBtn2 = $("consensusResetBtn");
+    if (resetBtn2) resetBtn2.addEventListener("click", () => send("reset", { participantId: myId }));
 }
 
 // ---------- Прогресс голосования ----------

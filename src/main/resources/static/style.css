@@ -150,16 +150,18 @@ body {
     user-select: none;
 }
 .lobby-logo-icon {
-    font-size: 52px;
+    font-size: 64px;
     line-height: 1;
     margin-bottom: 14px;
     display: block;
-    filter: drop-shadow(0 4px 16px rgba(88, 166, 255, .35));
+    color: var(--primary);
+    text-shadow: 0 0 32px rgba(88, 166, 255, .5);
     animation: logo-float 4s ease-in-out infinite;
+    font-style: normal;
 }
 @keyframes logo-float {
-    0%, 100% { transform: translateY(0); }
-    50%       { transform: translateY(-6px); }
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .75; }
 }
 .brand {
     font-size: 30px;
@@ -304,9 +306,11 @@ body {
     min-width: 0;
 }
 .topbar-brand {
-    font-size: 18px;
+    font-size: 22px;
     flex-shrink: 0;
-    filter: drop-shadow(0 0 8px rgba(88, 166, 255, .4));
+    color: var(--primary);
+    text-shadow: 0 0 12px rgba(88, 166, 255, .45);
+    line-height: 1;
 }
 .topbar-name-block { min-width: 0; }
 .room-title {
@@ -653,58 +657,95 @@ body {
 }
 .results .metric .value { font-size: 30px; font-weight: 800; margin-top: 2px; line-height: 1; }
 
-.results .dist { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.results .dist .chip {
+/* ---- Locked estimate badge ---- */
+.estimate-locked {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--success);
+    font-weight: 600;
+    padding: 9px 20px;
+    background: var(--success-l);
+    border: 1px solid rgba(63, 185, 80, .22);
+    border-radius: var(--radius-sm);
+    width: 100%;
+    text-align: center;
+}
+.estimate-locked strong { font-size: 17px; margin-left: 2px; }
+
+/* ---- Action buttons row ---- */
+.results-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    padding-top: 4px;
+}
+
+/* ---- No-consensus header ---- */
+.no-consensus-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+}
+.no-consensus-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--warn);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    background: rgba(227, 179, 65, .1);
+    padding: 3px 10px;
+    border-radius: 99px;
+    border: 1px solid rgba(227, 179, 65, .2);
+}
+.no-consensus-avg {
+    font-size: 14px;
+    color: var(--muted);
+}
+.no-consensus-avg strong {
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 800;
+    margin-left: 4px;
+}
+
+/* ---- Vote distribution chips ---- */
+.votes-dist {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+}
+.vote-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 5px 10px;
-    font-size: 13px;
-    font-weight: 600;
+    border-radius: 10px;
+    padding: 8px 14px;
 }
-.results .dist .chip b { color: var(--primary); }
-
-.results .final-estimate {
-    width: 100%;
-    text-align: center;
-    padding: 5px 0 2px;
-    color: var(--success);
-    font-size: 14px;
-    font-weight: 600;
-}
-.results .final-estimate b {
-    font-size: 24px;
+.vote-chip-val {
+    font-size: 20px;
     font-weight: 800;
-    margin-left: 5px;
-}
-
-/* Estimate form */
-.estimate-form {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
-}
-.estimate-input {
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: rgba(13, 17, 23, .7);
     color: var(--text);
-    font: inherit;
-    font-size: 14px;
-    width: 110px;
-    flex: 0 0 auto;
-    outline: none;
-    text-align: center;
-    transition: border-color .15s, box-shadow .15s;
+    line-height: 1;
 }
-.estimate-input:focus {
-    border-color: var(--success);
-    box-shadow: 0 0 0 2px var(--success-l);
+.vote-chip-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-l);
+    padding: 2px 7px;
+    border-radius: 4px;
 }
 
 /* Vote progress */
