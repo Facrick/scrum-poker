@@ -60,7 +60,12 @@ async function onPrimary() {
             // URL обновим после успешного подключения (в onMe), чтобы при ошибке не застрять в join-режиме
         } else {
             const res = await fetch("/api/rooms/" + encodeURIComponent(roomId));
-            if (!res.ok) { lobbyError("Комната не найдена или закрыта"); $("primaryBtn").disabled = false; return; }
+            if (!res.ok) {
+                // Комната не найдена — переключаем в режим создания новой
+                switchToCreateMode("Комната закрыта или истекла. Создайте новую:");
+                $("primaryBtn").disabled = false;
+                return;
+            }
         }
         connectAndJoin(name, role);
     } catch (e) {
@@ -70,6 +75,19 @@ async function onPrimary() {
 }
 
 function lobbyError(msg) { $("lobbyError").textContent = msg; }
+
+/** Переключает лобби в режим создания комнаты (убирает join-форму, показывает поле названия). */
+function switchToCreateMode(errorMsg) {
+    localStorage.removeItem("sp_pid");
+    localStorage.removeItem("sp_role");
+    history.replaceState(null, "", "/");
+    // Переключаем UI на создание
+    $("lobbySub").textContent = "Оценка задач командой в реальном времени";
+    $("roleField").classList.add("hidden");
+    $("roomNameField").classList.remove("hidden");
+    $("primaryBtn").textContent = "Создать комнату";
+    if (errorMsg) lobbyError(errorMsg);
+}
 
 // ---------- WebSocket ----------
 function connectAndJoin(name, role) {
@@ -95,13 +113,8 @@ function connectAndJoin(name, role) {
 
 function onMe(body) {
     if (body.error) {
-        // Сбрасываем сохранённую сессию — комната не найдена или недоступна
-        localStorage.removeItem("sp_pid");
-        localStorage.removeItem("sp_role");
-        // Восстанавливаем URL до корня, чтобы лобби показалось в режиме "создать"
-        history.replaceState(null, "", "/");
         showRoom(false);
-        lobbyError(body.error);
+        switchToCreateMode("Комната закрыта или истекла. Создайте новую:");
         $("primaryBtn").disabled = false;
         if (stompClient) stompClient.deactivate();
         return;
