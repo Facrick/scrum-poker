@@ -175,17 +175,16 @@ function render(state) {
 
     $("roomName").textContent = state.roomName;
     const storyLabel = $("storyLabel");
-    const storyChip  = $("storyChip");
     if (state.currentStory) {
         storyLabel.textContent = state.currentStory;
-        storyChip.classList.add("active");
+        storyLabel.classList.add("active");
     } else {
         storyLabel.textContent = "Задача не задана";
-        storyChip.classList.remove("active");
+        storyLabel.classList.remove("active");
     }
 
     const online = state.participants.filter(p => p.online).length;
-    $("onlineCount").textContent = "👥 " + online;
+    $("onlineCount").textContent = online + " онлайн";
 
     renderDeckSelector(state);
     renderTimer(state);

@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=18">
+    <link rel="stylesheet" href="style.css?v=20">
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -15,35 +15,33 @@
 
 <!-- ===== Лобби ===== -->
 <main id="lobby" class="lobby">
-    <!-- Brand hero -->
-    <div class="lobby-hero">
-        <span class="lobby-logo-icon">♠</span>
-        <div class="brand">Scrum Poker</div>
-        <p class="lobby-tagline">Оценка задач командой · без регистрации · до 100 участников</p>
-    </div>
-
-    <!-- Glass card -->
     <div class="lobby-card">
+
+        <!-- Wordmark -->
+        <div class="lobby-wordmark">
+            <span class="lobby-suit">♠</span>
+            <span class="lobby-brand">Scrum Poker</span>
+        </div>
+        <p class="lobby-sub">Покер-планирование для agile-команд</p>
+
         <!-- Mode tabs -->
         <div id="lobbyTabs" class="lobby-tabs">
             <button id="tabCreate" class="lobby-tab active" type="button">Новая сессия</button>
-            <button id="tabJoin"   class="lobby-tab"        type="button">Войти в комнату</button>
+            <button id="tabJoin"   class="lobby-tab"        type="button">Войти</button>
         </div>
 
         <label class="field">
-            <span>Ваше имя</span>
+            <span>Имя</span>
             <input id="nameInput" type="text" maxlength="40"
                    placeholder="Например, Алиса" autocomplete="new-password">
         </label>
 
-        <!-- Create-mode fields -->
         <label class="field" id="roomNameField">
             <span>Название сессии</span>
             <input id="roomNameInput" type="text" maxlength="60"
                    placeholder="Например, Спринт 42" autocomplete="new-password">
         </label>
 
-        <!-- Join-mode fields -->
         <label class="field hidden" id="roomCodeField">
             <span>Код комнаты</span>
             <input id="roomCodeInput" type="text" maxlength="8"
@@ -52,7 +50,7 @@
         <label class="field hidden" id="roleField">
             <span>Роль</span>
             <select id="roleSelect">
-                <option value="PLAYER">Участник (голосует)</option>
+                <option value="PLAYER">Участник — голосует</option>
                 <option value="OBSERVER">Наблюдатель</option>
             </select>
         </label>
@@ -60,74 +58,63 @@
         <button id="primaryBtn" class="btn btn-primary btn-block">Создать комнату</button>
         <p id="lobbyError" class="form-error"></p>
     </div>
+    <p class="lobby-foot">До 100 участников · без регистрации</p>
 </main>
 
 <!-- ===== Комната ===== -->
 <div id="room" class="room hidden">
 
-    <!-- Topbar: brand | story | controls -->
     <header class="topbar">
         <div class="topbar-left">
-            <span class="topbar-brand">♠</span>
-            <div class="topbar-name-block">
-                <h1 id="roomName" class="room-title">Комната</h1>
-            </div>
+            <span class="topbar-suit">♠</span>
+            <h1 id="roomName" class="room-title">Комната</h1>
         </div>
 
         <div class="topbar-center">
-            <div id="storyChip" class="room-story-chip">
-                <span class="story-icon">📌</span>
-                <span id="storyLabel">Задача не задана</span>
-            </div>
+            <span id="storyLabel" class="room-story">Задача не задана</span>
         </div>
 
         <div class="topbar-right">
             <div id="timerDisplay" class="timer-badge hidden">
                 <span id="timerValue">0:00</span>
             </div>
-            <span id="onlineCount" class="pill">👥 0</span>
+            <span id="onlineCount" class="pill">0 онлайн</span>
             <span id="connDot" class="conn-dot" title="Соединение"></span>
-            <button id="toggleBacklogBtn" class="btn btn-ghost btn-sm" title="Бэклог">📋</button>
-            <button id="copyLinkBtn" class="btn btn-ghost btn-sm">🔗 <span class="link-text">Пригласить</span></button>
+            <button id="toggleBacklogBtn" class="btn btn-ghost btn-sm">Бэклог</button>
+            <button id="copyLinkBtn"      class="btn btn-ghost btn-sm"><span class="link-text">Пригласить</span></button>
         </div>
     </header>
 
-    <!-- Moderator panel -->
     <section id="moderatorPanel" class="mod-panel hidden">
-        <!-- Row 1: task input -->
         <div class="mod-row">
             <input id="storyInput" type="text" class="mod-input"
-                   placeholder="Название задачи → добавит в бэклог" autocomplete="off">
+                   placeholder="Название задачи" autocomplete="off">
             <button id="setStoryBtn" class="btn btn-ghost btn-sm">Задать</button>
-        </div>
-        <!-- Row 2: deck + timer + actions -->
-        <div class="mod-row">
-            <select id="deckChange" class="mod-select" title="Колода">
+            <span class="mod-sep"></span>
+            <select id="deckChange" class="mod-select">
                 <option value="FIBONACCI">Фибоначчи</option>
                 <option value="POWERS_OF_TWO">Степени двойки</option>
                 <option value="TSHIRT">Майки</option>
-                <option value="CUSTOM">Своя колода…</option>
+                <option value="CUSTOM">Своя колода</option>
             </select>
             <div id="customDeckWrap" class="custom-deck-wrap hidden">
                 <input id="customCardsInput" type="text" class="mod-input" maxlength="120"
-                       placeholder="1, 2, 4, XL, ? (через запятую)" autocomplete="off">
+                       placeholder="1, 2, 4, XL, ? — через запятую" autocomplete="off">
                 <button id="applyCustomDeckBtn" class="btn btn-ghost btn-sm">Применить</button>
             </div>
-            <div class="timer-wrap">
-                <select id="timerSelect" class="mod-select" title="Таймер">
-                    <option value="0">⏱ Без таймера</option>
-                    <option value="30">30 сек</option>
-                    <option value="60">1 мин</option>
-                    <option value="90">1:30</option>
-                    <option value="120">2 мин</option>
-                    <option value="180">3 мин</option>
-                </select>
-                <button id="startTimerBtn" class="btn btn-ghost btn-sm" title="Запустить таймер">▶ Старт</button>
-                <button id="stopTimerBtn"  class="btn btn-ghost btn-sm hidden" title="Остановить">■ Стоп</button>
-            </div>
+            <select id="timerSelect" class="mod-select">
+                <option value="0">Без таймера</option>
+                <option value="30">30 сек</option>
+                <option value="60">1 мин</option>
+                <option value="90">1:30</option>
+                <option value="120">2 мин</option>
+                <option value="180">3 мин</option>
+            </select>
+            <button id="startTimerBtn" class="btn btn-ghost btn-sm">Старт</button>
+            <button id="stopTimerBtn"  class="btn btn-ghost btn-sm hidden">Стоп</button>
             <span class="mod-spacer"></span>
-            <button id="revealBtn" class="btn btn-success btn-sm">Вскрыть карты</button>
-            <button id="resetBtn"  class="btn btn-secondary btn-sm">↩ Новый раунд</button>
+            <button id="revealBtn" class="btn btn-primary btn-sm">Вскрыть карты</button>
+            <button id="resetBtn"  class="btn btn-secondary btn-sm">Новый раунд</button>
         </div>
     </section>
 
@@ -140,8 +127,8 @@
 
         <aside id="backlogPanel" class="backlog-panel hidden">
             <div class="backlog-header">
-                <span>📋 Бэклог</span>
-                <button id="exportCsvBtn" class="btn btn-ghost btn-sm" title="Экспорт в Excel">⬇ XLS</button>
+                <span>Бэклог</span>
+                <button id="exportCsvBtn" class="btn btn-ghost btn-sm">Экспорт XLS</button>
             </div>
             <div id="backlogList" class="backlog-list"></div>
         </aside>
@@ -155,6 +142,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=18"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>
