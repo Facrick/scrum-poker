@@ -1,6 +1,7 @@
 package com.scrumpoker.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scrumpoker.account.SessionHistoryRepository;
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
@@ -25,7 +26,8 @@ class RoomServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RoomService(new ObjectMapper(), mock(RoomRepository.class), new RateLimiter());
+        service = new RoomService(new ObjectMapper(), mock(RoomRepository.class),
+                mock(SessionHistoryRepository.class), new RateLimiter());
         ReflectionTestUtils.setField(service, "roomTtlHours", 8);
     }
 

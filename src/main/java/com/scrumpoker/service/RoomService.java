@@ -1,6 +1,8 @@
 package com.scrumpoker.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scrumpoker.account.SessionHistory;
+import com.scrumpoker.account.SessionHistoryRepository;
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
@@ -32,6 +34,7 @@ public class RoomService {
     private final SecureRandom random = new SecureRandom();
     private final ObjectMapper objectMapper;
     private final RoomRepository roomRepository;
+    private final SessionHistoryRepository sessionHistoryRepository;
     private final RateLimiter rateLimiter;
 
     @Value("${app.room-ttl-hours:8}")
@@ -39,9 +42,11 @@ public class RoomService {
 
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
 
-    public RoomService(ObjectMapper objectMapper, RoomRepository roomRepository, RateLimiter rateLimiter) {
+    public RoomService(ObjectMapper objectMapper, RoomRepository roomRepository,
+                       SessionHistoryRepository sessionHistoryRepository, RateLimiter rateLimiter) {
         this.objectMapper = objectMapper;
         this.roomRepository = roomRepository;
+        this.sessionHistoryRepository = sessionHistoryRepository;
         this.rateLimiter = rateLimiter;
     }
 
@@ -63,9 +68,14 @@ public class RoomService {
     }
 
     public Room createRoom(String name, Deck deck) {
+        return createRoom(name, deck, null);
+    }
+
+    public Room createRoom(String name, Deck deck, String ownerUserId) {
         String id = generateId();
         Room room = new Room(id, name == null || name.isBlank() ? "Scrum Poker" : name,
                 deck == null ? Deck.FIBONACCI : deck);
+        room.setOwnerUserId(ownerUserId);
         rooms.put(id, room);
         return room;
     }
@@ -100,12 +110,35 @@ public class RoomService {
             persistFailures.set(0);
         } catch (Exception e) {
             int n = persistFailures.incrementAndGet();
-            // Раньше ошибки молча гасились на WARN — потеря персистентности оставалась незамеченной.
-            // Теперь логируем на ERROR и считаем подряд идущие сбои.
             log.error("Не удалось сохранить комнату {} в БД (подряд сбоев: {}): {}",
                     room.getId(), n, e.getMessage());
             if (n == 1) log.error("Полная трассировка первого сбоя персистентности:", e);
         }
+        // История сессии обновляется независимо, только для комнат модераторов
+        if (room.getOwnerUserId() != null) {
+            try {
+                persistSessionHistory(room);
+            } catch (Exception e) {
+                log.warn("Не удалось обновить историю сессии {}: {}", room.getId(), e.getMessage());
+            }
+        }
+    }
+
+    private void persistSessionHistory(Room room) {
+        int taskCount = room.getBacklog().size();
+        int estimatedCount = (int) room.getBacklog().stream()
+                .filter(i -> i.getEstimate() != null)
+                .count();
+        sessionHistoryRepository.upsert(new SessionHistory(
+                room.getId(),
+                room.getOwnerUserId(),
+                room.getName(),
+                room.getParticipants().size(),
+                taskCount,
+                estimatedCount,
+                room.getCreatedAt(),
+                room.getLastActivityAt()
+        ));
     }
 
     /** Число подряд идущих сбоев записи в БД (0 — последняя запись успешна). */

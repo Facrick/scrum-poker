@@ -1,6 +1,7 @@
 package com.scrumpoker.ws;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scrumpoker.account.SessionHistoryRepository;
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Participant;
 import com.scrumpoker.model.Room;
@@ -38,7 +39,8 @@ class PokerControllerTest {
 
     @BeforeEach
     void setUp() {
-        roomService = new RoomService(new ObjectMapper(), mock(RoomRepository.class), new RateLimiter());
+        roomService = new RoomService(new ObjectMapper(), mock(RoomRepository.class),
+                mock(SessionHistoryRepository.class), new RateLimiter());
         controller = new PokerController(roomService, mock(SimpMessagingTemplate.class), new RateLimiter());
         room = roomService.createRoom("Sprint", Deck.FIBONACCI);
     }

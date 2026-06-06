@@ -116,6 +116,51 @@
             color: var(--text);
             margin-bottom: .4rem;
         }
+        table.sessions {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table.sessions thead tr {
+            border-bottom: 1.5px solid var(--border);
+        }
+        table.sessions th {
+            padding: .75rem 1.25rem;
+            font-size: .78rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        table.sessions td {
+            padding: .85rem 1.25rem;
+            font-size: .9rem;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+        }
+        table.sessions tbody tr:last-child td { border-bottom: none; }
+        table.sessions tbody tr:hover td { background: var(--bg); }
+        .tag-pill {
+            display: inline-block;
+            padding: .15rem .5rem;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 600;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        .tag-pill.done {
+            background: #d1fae5;
+            border-color: #6ee7b7;
+            color: #065f46;
+        }
+        .room-link {
+            font-weight: 600;
+            color: var(--text);
+            text-decoration: none;
+        }
+        .room-link:hover { color: var(--accent); text-decoration: underline; }
 
         /* Кнопка выхода */
         .btn-logout {
@@ -162,10 +207,27 @@
 
     <!-- История сессий -->
     <p class="section-title">История сессий</p>
-    <div class="sessions-table-wrap">
-        <div class="sessions-empty" id="sessionsEmpty">
-            <strong>Пока нет завершённых сессий</strong>
-            Сессии появятся здесь после первой проведённой покер-сессии.
+    <div class="sessions-table-wrap" id="sessionsWrap">
+        <div class="sessions-empty" id="sessionsEmpty" style="display:none">
+            <strong>Пока нет сессий</strong>
+            Создайте комнату, войдя как модератор, и она появится здесь.
+        </div>
+        <table class="sessions" id="sessionsTable" style="display:none">
+            <thead>
+                <tr>
+                    <th>Сессия</th>
+                    <th>Участники</th>
+                    <th>Задачи</th>
+                    <th>Последняя активность</th>
+                </tr>
+            </thead>
+            <tbody id="sessionsBody"></tbody>
+        </table>
+        <!-- скелетон во время загрузки -->
+        <div id="sessionsSkeleton" style="padding:1.25rem">
+            <div class="skeleton" style="height:14px;width:60%;margin-bottom:.75rem"></div>
+            <div class="skeleton" style="height:14px;width:40%;margin-bottom:.75rem"></div>
+            <div class="skeleton" style="height:14px;width:75%"></div>
         </div>
     </div>
 

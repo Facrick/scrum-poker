@@ -25,7 +25,8 @@ public record RoomSnapshot(
         Long createdAt,               // epoch millis
         List<ParticipantSnap> participants,
         List<BacklogSnap> backlog,
-        String activeItemId
+        String activeItemId,
+        String ownerUserId            // null для анонимных комнат
 ) {
 
     public record ParticipantSnap(String id, String name, String role, String vote) {}
@@ -53,7 +54,8 @@ public record RoomSnapshot(
                 room.getCreatedAt().toEpochMilli(),
                 parts,
                 bl,
-                room.getActiveItemId()
+                room.getActiveItemId(),
+                room.getOwnerUserId()
         );
     }
 
@@ -70,6 +72,7 @@ public record RoomSnapshot(
         room.setFinalEstimate(revealed ? finalEstimate : null);
         room.setTimerSeconds(timerSeconds);
         room.setActiveItemId(activeItemId);
+        room.setOwnerUserId(ownerUserId);  // null для старых снимков без ownerUserId
 
         if (participants != null) {
             for (ParticipantSnap ps : participants) {

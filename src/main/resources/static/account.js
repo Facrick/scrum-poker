@@ -1,14 +1,11 @@
 (async () => {
+    // ── Загрузка профиля ──────────────────────────────────────────
     let user;
     try {
         const res = await fetch('/api/me');
-        // 302 редирект на /login браузер следует автоматически — res.url изменится
-        if (!res.ok || !res.url.includes('/api/me')) {
-            location.href = '/login';
-            return;
-        }
+        if (!res.ok || !res.url.includes('/api/me')) { location.href = '/login'; return; }
         user = await res.json();
-        if (!user || !user.id) throw new Error('empty user');
+        if (!user || !user.id) throw new Error('empty');
     } catch {
         location.href = '/login';
         return;
@@ -32,10 +29,59 @@
         await fetch('/api/me/logout', { method: 'POST' });
         location.href = '/';
     });
+
+    // ── Загрузка истории сессий ───────────────────────────────────
+    try {
+        const res = await fetch('/api/me/sessions');
+        const sessions = res.ok ? await res.json() : [];
+        renderSessions(sessions);
+    } catch {
+        renderSessions([]);
+    }
 })();
 
+function renderSessions(sessions) {
+    const skeleton = document.getElementById('sessionsSkeleton');
+    const empty    = document.getElementById('sessionsEmpty');
+    const table    = document.getElementById('sessionsTable');
+    const tbody    = document.getElementById('sessionsBody');
+
+    skeleton.style.display = 'none';
+
+    if (!sessions.length) {
+        empty.style.display = '';
+        return;
+    }
+
+    table.style.display = '';
+    tbody.innerHTML = sessions.map(s => {
+        const allDone = s.taskCount > 0 && s.estimatedCount === s.taskCount;
+        const taskLabel = s.taskCount === 0
+            ? '<span class="tag-pill">нет задач</span>'
+            : `${s.estimatedCount}/${s.taskCount} оценено ${allDone ? '<span class="tag-pill done">✓</span>' : ''}`;
+        const date = fmtDate(s.lastActiveAt);
+        const origin = location.origin;
+        return `<tr>
+            <td><a class="room-link" href="${origin}/?room=${esc(s.roomId)}" target="_blank">${esc(s.roomName || s.roomId)}</a>
+                <br><small style="color:var(--text-muted);font-size:.75rem">${esc(s.roomId)}</small></td>
+            <td>${s.participantCount}</td>
+            <td>${taskLabel}</td>
+            <td style="color:var(--text-muted);white-space:nowrap">${date}</td>
+        </tr>`;
+    }).join('');
+}
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
 function esc(s) {
-    return String(s)
+    return String(s ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')

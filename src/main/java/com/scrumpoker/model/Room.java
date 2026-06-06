@@ -23,6 +23,7 @@ public class Room {
     private volatile String activeItemId = null;
     private Instant createdAt = Instant.now();
     private volatile Instant lastActivityAt = Instant.now();
+    private volatile String ownerUserId = null;
     private final Map<String, Participant> participants = new ConcurrentHashMap<>();
 
     public Room(String id, String name, Deck deck) {
@@ -67,6 +68,8 @@ public class Room {
     public Instant getLastActivityAt() { return lastActivityAt; }
     /** Отметить активность комнаты (вызывается при каждом broadcast). */
     public void touch() { this.lastActivityAt = Instant.now(); }
+    public String getOwnerUserId() { return ownerUserId; }
+    public void setOwnerUserId(String ownerUserId) { this.ownerUserId = ownerUserId; }
 
     public Collection<Participant> getParticipants() { return participants.values(); }
     public Participant getParticipant(String id) { return participants.get(id); }

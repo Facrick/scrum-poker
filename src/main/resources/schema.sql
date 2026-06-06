@@ -4,6 +4,18 @@ CREATE TABLE IF NOT EXISTS room_snapshots (
     updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- История сессий модераторов (не удаляется при TTL-зачистке комнат)
+CREATE TABLE IF NOT EXISTS session_history (
+    room_id           VARCHAR(8)    NOT NULL PRIMARY KEY,
+    owner_user_id     VARCHAR(36)   NOT NULL,
+    room_name         VARCHAR(255),
+    participant_count INT           NOT NULL DEFAULT 0,
+    task_count        INT           NOT NULL DEFAULT 0,
+    estimated_count   INT           NOT NULL DEFAULT 0,
+    started_at        TIMESTAMP     NOT NULL,
+    last_active_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id           VARCHAR(36)   NOT NULL PRIMARY KEY,
     provider     VARCHAR(20)   NOT NULL,
