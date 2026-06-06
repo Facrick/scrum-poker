@@ -88,6 +88,48 @@ docker compose up -d --build app
 | `LOG_PATH`       | `./logs`                  | Каталог файлов логов                    |
 | `LOG_LEVEL_APP`  | `INFO`                    | Уровень логов пакета `com.scrumpoker`   |
 | `SPRING_PROFILES_ACTIVE` | —                 | `json` — структурированные JSON-логи    |
+| `GOOGLE_CLIENT_ID` | —                       | OAuth2 Google: Client ID                |
+| `GOOGLE_CLIENT_SECRET` | —                   | OAuth2 Google: Client Secret            |
+| `GITHUB_CLIENT_ID` | —                       | OAuth2 GitHub: Client ID                |
+| `GITHUB_CLIENT_SECRET` | —                   | OAuth2 GitHub: Client Secret            |
+
+---
+
+## OAuth2 — кабинет модератора
+
+Анонимный вход (лобби → комната) работает **без** OAuth2.  
+Кабинет модератора (`/account`) требует входа через Google или GitHub.
+
+### Настройка Google OAuth
+
+1. Откройте [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials**
+2. Нажмите **Create Credentials** → **OAuth client ID** → **Web application**
+3. Добавьте в **Authorized redirect URIs**:
+   ```
+   https://poker.yourcompany.com/login/oauth2/code/google
+   # Для локальной разработки:
+   http://localhost:8080/login/oauth2/code/google
+   ```
+4. Скопируйте **Client ID** и **Client Secret** в `.env`:
+   ```env
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=GOCSPX-...
+   ```
+
+### Настройка GitHub OAuth
+
+1. Откройте [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
+2. Нажмите **New OAuth App**:
+   - **Homepage URL:** `https://poker.yourcompany.com`
+   - **Authorization callback URL:** `https://poker.yourcompany.com/login/oauth2/code/github`
+3. Нажмите **Generate a new client secret**
+4. Скопируйте в `.env`:
+   ```env
+   GITHUB_CLIENT_ID=Ov23li...
+   GITHUB_CLIENT_SECRET=...
+   ```
+
+> **Без OAuth2 переменных** кнопки входа вернут ошибку от Google/GitHub. Само приложение (покер, комнаты) работает без изменений — участники по-прежнему анонимны.
 
 ---
 

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кабинет модератора — Scrum Poker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=20">
+    <style>
+        body { background: var(--bg); }
+
+        .account-layout {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 2rem 1rem 4rem;
+        }
+
+        /* Топбар */
+        .acc-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+        .acc-brand {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            text-decoration: none;
+            color: var(--text);
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+        .acc-brand .suit { color: var(--accent); font-size: 1.2rem; }
+
+        /* Профиль */
+        .profile-card {
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+        .profile-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+        .profile-avatar-placeholder {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-size: 1.6rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .profile-info { flex: 1; }
+        .profile-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: .2rem;
+        }
+        .profile-email {
+            font-size: .85rem;
+            color: var(--text-muted);
+        }
+        .profile-provider {
+            display: inline-block;
+            margin-top: .5rem;
+            font-size: .75rem;
+            font-weight: 500;
+            padding: .2rem .6rem;
+            border-radius: 999px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            text-transform: capitalize;
+        }
+
+        /* Секция сессий */
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+        .sessions-table-wrap {
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .sessions-empty {
+            padding: 3rem 1.5rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: .9rem;
+        }
+        .sessions-empty strong {
+            display: block;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: .4rem;
+        }
+
+        /* Кнопка выхода */
+        .btn-logout {
+            background: none;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            padding: .45rem .9rem;
+            font-size: .85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: border-color .15s, color .15s;
+        }
+        .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+        /* Скелетон загрузки */
+        .skeleton {
+            background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 6px;
+        }
+        @keyframes shimmer { to { background-position: -200% 0; } }
+    </style>
+</head>
+<body>
+<div class="account-layout">
+
+    <nav class="acc-topbar">
+        <a class="acc-brand" href="/">
+            <span class="suit">♠</span> Scrum Poker
+        </a>
+        <button class="btn-logout" id="logoutBtn">Выйти</button>
+    </nav>
+
+    <!-- Профиль -->
+    <div class="profile-card" id="profileCard">
+        <div class="profile-avatar-placeholder skeleton" style="width:64px;height:64px;border-radius:50%"></div>
+        <div class="profile-info">
+            <div class="profile-name skeleton" style="width:160px;height:18px;margin-bottom:.4rem"></div>
+            <div class="profile-email skeleton" style="width:220px;height:14px"></div>
+        </div>
+    </div>
+
+    <!-- История сессий -->
+    <p class="section-title">История сессий</p>
+    <div class="sessions-table-wrap">
+        <div class="sessions-empty" id="sessionsEmpty">
+            <strong>Пока нет завершённых сессий</strong>
+            Сессии появятся здесь после первой проведённой покер-сессии.
+        </div>
+    </div>
+
+</div>
+
+<script src="account.js?v=1"></script>
+</body>
+</html>
