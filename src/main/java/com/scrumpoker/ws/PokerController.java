@@ -43,6 +43,17 @@ public class PokerController {
             return Map.of("error", "Комната не найдена");
         }
 
+        // Попытка восстановить существующую сессию (реконнект после обрыва)
+        if (msg.existingId() != null && !msg.existingId().isBlank()) {
+            Participant existing = room.getParticipant(msg.existingId());
+            if (existing != null) {
+                existing.setOnline(true);
+                sessions.put(headers.getSessionId(), new String[]{roomId, existing.getId()});
+                broadcast(room);
+                return Map.of("participantId", existing.getId(), "role", existing.getRole().name());
+            }
+        }
+
         Participant.Role role = parseRole(msg.role());
         Participant p;
         try {
@@ -224,12 +235,12 @@ public class PokerController {
         String[] info = sessions.remove(sessionId);
         if (info == null) return;
         roomService.getRoom(info[0]).ifPresent(room -> {
-            room.removeParticipant(info[1]);
-            if (room.size() == 0) {
-                roomService.removeEmptyRoom(room);
-            } else {
-                broadcast(room);
-            }
+            Participant p = room.getParticipant(info[1]);
+            if (p == null) return;
+            // Помечаем офлайн — не удаляем, чтобы реконнект восстановил сессию.
+            // Комната удаляется по TTL (evictStaleRooms) или когда все офлайн надолго.
+            p.setOnline(false);
+            broadcast(room);
         });
     }
 

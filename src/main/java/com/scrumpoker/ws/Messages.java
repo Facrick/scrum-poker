@@ -4,7 +4,8 @@ package com.scrumpoker.ws;
 public final class Messages {
     private Messages() {}
 
-    public record JoinMessage(String name, String role) {}
+    /** existingId — сохранённый participantId клиента, для восстановления сессии после реконнекта. */
+    public record JoinMessage(String name, String role, String existingId) {}
     public record VoteMessage(String participantId, String value) {}
     public record ModeratorAction(String participantId) {} // отправитель, для проверки прав
     public record SetStoryMessage(String participantId, String story) {}

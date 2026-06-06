@@ -71,9 +71,11 @@ function connectAndJoin(name, role) {
             setConn(true);
             stompClient.subscribe("/user/queue/me", (m) => onMe(JSON.parse(m.body)));
             stompClient.subscribe("/topic/room/" + roomId, (m) => render(JSON.parse(m.body)));
+            // При реконнекте передаём сохранённый participantId для восстановления сессии
+            const existingId = localStorage.getItem("sp_pid") || "";
             stompClient.publish({
                 destination: "/app/room/" + roomId + "/join",
-                body: JSON.stringify({ name, role })
+                body: JSON.stringify({ name, role, existingId })
             });
         },
         onWebSocketClose: () => setConn(false),
@@ -84,6 +86,11 @@ function connectAndJoin(name, role) {
 
 function onMe(body) {
     if (body.error) {
+        // Сбрасываем сохранённую сессию — комната не найдена или недоступна
+        localStorage.removeItem("sp_pid");
+        localStorage.removeItem("sp_role");
+        // Восстанавливаем URL до корня, чтобы лобби показалось в режиме "создать"
+        history.replaceState(null, "", "/");
         showRoom(false);
         lobbyError(body.error);
         $("primaryBtn").disabled = false;
@@ -92,6 +99,9 @@ function onMe(body) {
     }
     myId = body.participantId;
     myRole = body.role;
+    // Сохраняем сессию для восстановления после реконнекта
+    localStorage.setItem("sp_pid", myId);
+    localStorage.setItem("sp_role", myRole);
     // Обновляем URL только сейчас — соединение успешно, комната точно существует
     if (!joinMode && roomId) {
         history.replaceState(null, "", "?room=" + roomId);
@@ -307,11 +317,11 @@ function renderResults(state) {
     // Консенсус — показываем большое число-герой вместо трёх одинаковых метрик
     if (s.consensus) {
         const val = Object.keys(s.distribution)[0];
-        // Emoji и нечисловые значения — класс plain (иначе -webkit-text-fill-color:transparent скрывает emoji)
         const isPlain = /[^\x00-\x7F]/.test(val) || isNaN(parseFloat(val));
         html += `<div class="consensus-hero">
             <div class="consensus-hero-value${isPlain ? ' plain' : ''}">${escapeHtml(val)}</div>
             <div class="consensus-hero-label">🎉 Консенсус!</div>
+            ${myRole === 'MODERATOR' ? '<button id="consensusResetBtn" class="btn btn-secondary btn-sm" style="margin-top:8px">Новый раунд</button>' : ''}
         </div>`;
     } else {
         // Не консенсус — показываем полную статистику
@@ -350,6 +360,10 @@ function renderResults(state) {
     el.innerHTML = html;
 
     if (myRole === "MODERATOR") {
+        const consensusResetBtn = $("consensusResetBtn");
+        if (consensusResetBtn) {
+            consensusResetBtn.addEventListener("click", () => send("reset", { participantId: myId }));
+        }
         const revoteBtn = $("revoteBtn");
         if (revoteBtn) {
             revoteBtn.addEventListener("click", () => send("reset", { participantId: myId }));
