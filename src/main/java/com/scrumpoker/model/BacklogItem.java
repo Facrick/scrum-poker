@@ -3,11 +3,18 @@ package com.scrumpoker.model;
 import java.util.UUID;
 
 public class BacklogItem {
-    private final String id = UUID.randomUUID().toString();
+    private final String id;
     private volatile String title;
     private volatile String estimate; // null = не оценено
 
     public BacklogItem(String title) {
+        this.id = UUID.randomUUID().toString();
+        this.title = title;
+    }
+
+    /** Конструктор для восстановления из БД с существующим id. */
+    public BacklogItem(String id, String title) {
+        this.id = id;
         this.title = title;
     }
 

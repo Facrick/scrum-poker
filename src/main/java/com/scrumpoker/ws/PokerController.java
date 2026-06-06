@@ -245,6 +245,7 @@ public class PokerController {
     }
 
     private void broadcast(Room room) {
+        roomService.persistRoom(room);
         messaging.convertAndSend("/topic/room/" + room.getId(), RoomStateDto.from(room));
     }
 

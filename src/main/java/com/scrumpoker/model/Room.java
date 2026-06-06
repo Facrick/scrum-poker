@@ -21,13 +21,21 @@ public class Room {
     // Бэклог задач
     private final List<BacklogItem> backlog = new CopyOnWriteArrayList<>();
     private volatile String activeItemId = null;
-    private final Instant createdAt = Instant.now();
+    private Instant createdAt = Instant.now();
     private final Map<String, Participant> participants = new ConcurrentHashMap<>();
 
     public Room(String id, String name, Deck deck) {
         this.id = id;
         this.name = name;
         this.deck = deck;
+    }
+
+    /** Конструктор для восстановления из БД с сохранением исходного времени создания. */
+    public Room(String id, String name, Deck deck, Instant createdAt) {
+        this.id = id;
+        this.name = name;
+        this.deck = deck;
+        this.createdAt = createdAt;
     }
 
     public String getId() { return id; }
