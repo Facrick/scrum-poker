@@ -218,6 +218,55 @@ body {
 .form-error { color: var(--danger); font-size: 13px; min-height: 18px; margin: 8px 0 0; }
 .lobby-foot { color: var(--muted); font-size: 12px; opacity: .6; }
 
+/* Бадж вошедшего модератора в лобби */
+.lobby-mod-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--text);
+}
+.lobby-mod-badge-av {
+    width: 26px; height: 26px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+}
+.lobby-mod-badge-init {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--primary-d); color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.lobby-mod-badge-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-mod-badge a { color: var(--primary); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.lobby-mod-badge a:hover { text-decoration: underline; }
+
+/* Аватар-ссылка на ЛК в топбаре комнаты */
+.topbar-account {
+    display: flex; align-items: center;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    transition: background .12s;
+    flex-shrink: 0;
+}
+.topbar-account:hover { background: var(--surface-3); }
+.topbar-account-av {
+    width: 28px; height: 28px; border-radius: 50%;
+    object-fit: cover;
+}
+.topbar-account-init {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--primary-d); color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+}
+
 /* =====================================================
    Room shell
    ===================================================== */

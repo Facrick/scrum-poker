@@ -162,6 +162,32 @@
         }
         .room-link:hover { color: var(--accent); text-decoration: underline; }
 
+        /* Кнопка «Новая сессия» */
+        .btn-new-session {
+            background: var(--accent, #2f81f7);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: .45rem .9rem;
+            font-size: .85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .15s;
+        }
+        .btn-new-session:hover { opacity: .85; }
+        .btn-new-session:disabled { opacity: .4; cursor: not-allowed; }
+
+        /* Статус живой комнаты */
+        .status-alive {
+            display: inline-flex; align-items: center; gap: 5px;
+            color: #16a34a; font-weight: 600; font-size: .82rem;
+        }
+        .status-alive::before {
+            content: ''; width: 7px; height: 7px; border-radius: 50%;
+            background: #22c55e; flex-shrink: 0;
+        }
+        .status-done { color: var(--text-muted); font-size: .82rem; }
+
         /* Кнопка выхода */
         .btn-logout {
             background: none;
@@ -193,7 +219,10 @@
         <a class="acc-brand" href="/">
             <span class="suit">♠</span> Scrum Poker
         </a>
-        <button class="btn-logout" id="logoutBtn">Выйти</button>
+        <div style="display:flex;gap:.5rem;align-items:center">
+            <button class="btn-new-session" id="newSessionBtn">+ Новая сессия</button>
+            <button class="btn-logout" id="logoutBtn">Выйти</button>
+        </div>
     </nav>
 
     <!-- Профиль -->
@@ -216,6 +245,7 @@
             <thead>
                 <tr>
                     <th>Сессия</th>
+                    <th>Статус</th>
                     <th>Участники</th>
                     <th>Задачи</th>
                     <th>Последняя активность</th>

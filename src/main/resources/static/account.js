@@ -25,9 +25,33 @@
         </div>
     `;
 
+    // ── Выйти ─────────────────────────────────────────────────────
     document.getElementById('logoutBtn').addEventListener('click', async () => {
         await fetch('/api/me/logout', { method: 'POST' });
         location.href = '/';
+    });
+
+    // ── Новая сессия ──────────────────────────────────────────────
+    const newSessionBtn = document.getElementById('newSessionBtn');
+    newSessionBtn.addEventListener('click', async () => {
+        newSessionBtn.disabled = true;
+        newSessionBtn.textContent = '…';
+        try {
+            const res = await fetch('/api/me/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: 'Новая сессия', deck: 'FIBONACCI' })
+            });
+            if (!res.ok) throw new Error('create failed');
+            const { roomId } = await res.json();
+            // Сохраняем имя, чтобы лобби подхватило → сразу войдём
+            localStorage.setItem('sp_name', user.displayName || 'Модератор');
+            location.href = '/?room=' + encodeURIComponent(roomId);
+        } catch {
+            newSessionBtn.disabled = false;
+            newSessionBtn.textContent = '+ Новая сессия';
+            alert('Не удалось создать сессию. Попробуйте ещё раз.');
+        }
     });
 
     // ── Загрузка истории сессий ───────────────────────────────────
@@ -59,11 +83,19 @@ function renderSessions(sessions) {
         const taskLabel = s.taskCount === 0
             ? '<span class="tag-pill">нет задач</span>'
             : `${s.estimatedCount}/${s.taskCount} оценено ${allDone ? '<span class="tag-pill done">✓</span>' : ''}`;
-        const date = fmtDate(s.lastActiveAt);
+        const date   = fmtDate(s.lastActiveAt);
         const origin = location.origin;
+
+        const statusCell = s.alive
+            ? `<span class="status-alive">Активна</span>
+               <br><a href="${origin}/?room=${esc(s.roomId)}" target="_blank"
+                       style="font-size:.75rem;color:var(--accent,#2f81f7)">Войти →</a>`
+            : `<span class="status-done">Завершена</span>`;
+
         return `<tr>
             <td><a class="room-link" href="${origin}/?room=${esc(s.roomId)}" target="_blank">${esc(s.roomName || s.roomId)}</a>
                 <br><small style="color:var(--text-muted);font-size:.75rem">${esc(s.roomId)}</small></td>
+            <td>${statusCell}</td>
             <td>${s.participantCount}</td>
             <td>${taskLabel}</td>
             <td style="color:var(--text-muted);white-space:nowrap">${date}</td>

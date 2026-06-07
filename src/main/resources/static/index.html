@@ -22,6 +22,10 @@
             <span class="lobby-suit">♠</span>
             <span class="lobby-brand">Scrum Poker</span>
         </div>
+
+        <!-- Бадж вошедшего модератора (скрыт по умолчанию, показывается JS) -->
+        <div id="lobbyModBadge" class="lobby-mod-badge hidden"></div>
+
         <p class="lobby-sub">Покер-планирование для agile-команд</p>
 
         <!-- Mode tabs -->
@@ -75,6 +79,8 @@
         </div>
 
         <div class="topbar-right">
+            <!-- Аватар-ссылка на ЛК (показывается если пользователь авторизован) -->
+            <a id="topbarAccount" class="topbar-account hidden" href="/account" title="Кабинет модератора"></a>
             <div id="timerDisplay" class="timer-badge hidden">
                 <span id="timerValue">0:00</span>
             </div>

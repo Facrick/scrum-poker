@@ -4,6 +4,7 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- Состояние ----------
 let stompClient = null;
+let moderatorUser = null; // профиль, если пользователь залогинен
 let roomId = new URLSearchParams(location.search).get("room");
 let myId = null;
 let myRole = null;
@@ -31,6 +32,25 @@ function switchLobbyTab(mode) {
 (function setupLobby() {
     const savedName = localStorage.getItem("sp_name");
     if (savedName) $("nameInput").value = savedName;
+
+    // Тихая проверка авторизации — не блокирует лобби
+    fetch("/api/me").then(async r => {
+        if (!r.ok) return;
+        const user = await r.json();
+        if (!user?.id) return;
+        moderatorUser = user;
+        // Предзаполняем имя, если поле ещё пустое
+        if (!$("nameInput").value) $("nameInput").value = user.displayName || "";
+        // Показываем бадж вошедшего модератора
+        const initL = (user.displayName || "M")[0].toUpperCase();
+        const av = user.avatarUrl
+            ? `<img class="lobby-mod-badge-av" src="${escapeHtml(user.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
+            : `<div class="lobby-mod-badge-init">${escapeHtml(initL)}</div>`;
+        $("lobbyModBadge").innerHTML =
+            `${av}<span class="lobby-mod-badge-name">${escapeHtml(user.displayName || "Модератор")}</span>` +
+            `<a href="/account">Кабинет</a>`;
+        $("lobbyModBadge").classList.remove("hidden");
+    }).catch(() => {});
 
     // Автовосстановление сессии при обновлении страницы (F5)
     const savedPid  = localStorage.getItem("sp_pid");
@@ -153,6 +173,14 @@ function onMe(body) {
 function showRoom(inRoom) {
     $("lobby").classList.toggle("hidden", inRoom);
     $("room").classList.toggle("hidden", !inRoom);
+    if (inRoom && moderatorUser) {
+        const link = $("topbarAccount");
+        const initL = (moderatorUser.displayName || "M")[0].toUpperCase();
+        link.innerHTML = moderatorUser.avatarUrl
+            ? `<img class="topbar-account-av" src="${escapeHtml(moderatorUser.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
+            : `<div class="topbar-account-init">${escapeHtml(initL)}</div>`;
+        link.classList.remove("hidden");
+    }
 }
 
 function setConn(online) {
