@@ -5,7 +5,9 @@ COPY pom.xml .
 # Кэшируем зависимости отдельным слоем
 RUN mvn dependency:go-offline -q
 COPY src ./src
-RUN mvn package -DskipTests -q
+# maven.test.skip=true — не компилируем и не гоняем тесты в прод-сборке
+# (исключает тяжёлые тестовые зависимости вроде Playwright из сборки образа)
+RUN mvn package -Dmaven.test.skip=true -q
 
 # ── Stage 2: минимальный runtime ────────────────────────────
 FROM eclipse-temurin:17-jre-alpine

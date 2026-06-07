@@ -102,13 +102,6 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
-        <!-- E2E: Playwright for Java (без Node-тулчейна) -->
-        <dependency>
-            <groupId>com.microsoft.playwright</groupId>
-            <artifactId>playwright</artifactId>
-            <version>1.44.0</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -142,6 +135,17 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- E2E-исходники (Playwright) исключены из обычной компиляции тестов,
+                 чтобы прод-сборка не тянула тяжёлый driver-bundle. Включаются профилем e2e. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <testExcludes>
+                        <testExclude>**/e2e/**</testExclude>
+                    </testExcludes>
+                </configuration>
             </plugin>
             <!-- Surefire: пишем результаты в формате Allure + AspectJ для @Step/@Attachment -->
             <plugin>
@@ -205,8 +209,22 @@
         <!-- E2E-прогон: mvn -Pe2e test (поднимает приложение и гоняет Playwright) -->
         <profile>
             <id>e2e</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.microsoft.playwright</groupId>
+                    <artifactId>playwright</artifactId>
+                    <version>1.44.0</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
             <build>
                 <plugins>
+                    <!-- В e2e-прогоне компилируем все тесты, включая e2e -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration combine.self="override"/>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
