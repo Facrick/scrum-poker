@@ -80,6 +80,32 @@ public class RoomService {
         return room;
     }
 
+    /**
+     * Создать комнату с заранее подготовленным бэклогом (из ЛК).
+     * Первая задача становится активной. Пустые/слишком длинные строки чистятся,
+     * лимит — 200 задач.
+     */
+    public Room createRoom(String name, Deck deck, String ownerUserId, java.util.List<String> tasks) {
+        Room room = createRoom(name, deck, ownerUserId);
+        if (tasks != null) {
+            for (String raw : tasks) {
+                if (room.getBacklog().size() >= 200) break;
+                if (raw == null) continue;
+                String t = raw.strip();
+                if (t.isEmpty()) continue;
+                if (t.length() > 120) t = t.substring(0, 120);
+                room.getBacklog().add(new com.scrumpoker.model.BacklogItem(t));
+            }
+            if (!room.getBacklog().isEmpty()) {
+                com.scrumpoker.model.BacklogItem first = room.getBacklog().get(0);
+                room.setActiveItemId(first.getId());
+                room.setCurrentStory(first.getTitle());
+            }
+            persistRoom(room);
+        }
+        return room;
+    }
+
     public Optional<Room> getRoom(String id) {
         return Optional.ofNullable(rooms.get(id));
     }
@@ -177,35 +203,6 @@ public class RoomService {
     }
 
     /**
-     * Бэклог сессии пользователя для экспорта: список пар [Задача, Оценка].
-     * Источник — живая комната или снимок в БД (до TTL-очистки). Возвращает
-     * Optional.empty(), если сессия не найдена или не принадлежит пользователю.
-     */
-    public Optional<List<String[]>> exportOwnedSession(String roomId, String userId) {
-        Room room = rooms.get(roomId);
-        if (room != null) {
-            if (!userId.equals(room.getOwnerUserId())) return Optional.empty();
-            return Optional.of(room.getBacklog().stream()
-                    .map(i -> new String[]{i.getTitle(), i.getEstimate() == null ? "" : i.getEstimate()})
-                    .collect(java.util.stream.Collectors.toList()));
-        }
-        // Комната не в памяти — пробуем снимок в БД.
-        return roomRepository.findById(roomId).flatMap(json -> {
-            try {
-                RoomSnapshot snap = objectMapper.readValue(json, RoomSnapshot.class);
-                if (!userId.equals(snap.ownerUserId())) return Optional.empty();
-                List<String[]> rows = snap.backlog() == null ? List.of()
-                        : snap.backlog().stream()
-                            .map(b -> new String[]{b.title(), b.estimate() == null ? "" : b.estimate()})
-                            .collect(java.util.stream.Collectors.toList());
-                return Optional.of(rows);
-            } catch (Exception e) {
-                return Optional.empty();
-            }
-        });
-    }
-
-    /**
      * Загрузить комнату из памяти или (если уже не активна) из снимка БД.
      * Используется публичной страницей итогов — без проверки владельца.
      */
@@ -219,6 +216,15 @@ public class RoomService {
                 return Optional.empty();
             }
         });
+    }
+
+    /**
+     * Комната, принадлежащая пользователю (из памяти или снимка БД), для отчётов из ЛК.
+     * Optional.empty(), если не найдена или не его.
+     */
+    public Optional<Room> loadOwnedRoom(String roomId, String userId) {
+        return loadAnyRoom(roomId)
+                .filter(room -> userId != null && userId.equals(room.getOwnerUserId()));
     }
 
     public void removeEmptyRoom(Room room) {

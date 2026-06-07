@@ -47,7 +47,7 @@ public class AccountController {
             boolean alive          // комната ещё живёт в памяти сервера
     ) {}
 
-    record CreateRoomRequest(String name, String deck) {}
+    record CreateRoomRequest(String name, String deck, List<String> tasks) {}
     record RenameSessionRequest(String name) {}
 
     // ── GET /api/me ───────────────────────────────────────────────
@@ -107,38 +107,32 @@ public class AccountController {
                 : ResponseEntity.notFound().build();
     }
 
-    // ── GET /api/me/sessions/{roomId}/export — CSV бэклога ───────
+    // ── GET /api/me/sessions/{roomId}/report — детальный отчёт ───
 
-    @GetMapping("/sessions/{roomId}/export")
-    public ResponseEntity<byte[]> exportSession(
+    public record ReportVote(String name, String value) {}
+    public record ReportItem(String title, String estimate, int revotes, List<ReportVote> votes) {}
+    public record SessionReport(String roomName, List<ReportItem> items) {}
+
+    @GetMapping("/sessions/{roomId}/report")
+    public ResponseEntity<SessionReport> report(
             @AuthenticationPrincipal OAuth2User oauthUser,
             @PathVariable String roomId) {
         if (oauthUser == null) return ResponseEntity.status(401).build();
         String userId = oauthUser.getAttribute("_userId");
-        return roomService.exportOwnedSession(roomId, userId)
-                .map(rows -> {
-                    StringBuilder sb = new StringBuilder("﻿"); // BOM — чтобы Excel понял UTF-8
-                    sb.append("Задача,Оценка\r\n");
-                    for (String[] r : rows) {
-                        sb.append(csv(r[0])).append(',').append(csv(r[1])).append("\r\n");
-                    }
-                    byte[] body = sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                    return ResponseEntity.ok()
-                            .header("Content-Type", "text/csv; charset=UTF-8")
-                            .header("Content-Disposition",
-                                    "attachment; filename=\"session-" + roomId + ".csv\"")
-                            .body(body);
+        return roomService.loadOwnedRoom(roomId, userId)
+                .map(room -> {
+                    List<ReportItem> items = room.getBacklog().stream()
+                            .map(i -> new ReportItem(
+                                    i.getTitle(),
+                                    i.getEstimate(),
+                                    i.getRevotes(),
+                                    i.getVotes().stream()
+                                            .map(v -> new ReportVote(v.name(), v.value()))
+                                            .toList()))
+                            .toList();
+                    return ResponseEntity.ok(new SessionReport(room.getName(), items));
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    /** Экранирование значения для CSV (кавычки, запятые, переводы строк). */
-    private static String csv(String v) {
-        if (v == null) return "";
-        if (v.contains("\"") || v.contains(",") || v.contains("\n") || v.contains("\r")) {
-            return '"' + v.replace("\"", "\"\"") + '"';
-        }
-        return v;
     }
 
     // ── POST /api/me/rooms — создать комнату из кабинета ─────────
@@ -156,7 +150,8 @@ public class AccountController {
             try { deck = Deck.valueOf(req.deck().toUpperCase()); }
             catch (IllegalArgumentException ignored) { /* оставляем FIBONACCI */ }
         }
-        Room room = roomService.createRoom(name, deck, userId);
+        List<String> tasks = (req != null) ? req.tasks() : null;
+        Room room = roomService.createRoom(name, deck, userId, tasks);
         return ResponseEntity.ok(Map.of("roomId", room.getId()));
     }
 }

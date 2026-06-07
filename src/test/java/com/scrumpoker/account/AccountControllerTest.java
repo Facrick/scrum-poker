@@ -220,40 +220,45 @@ class AccountControllerTest {
         assertThat(res.getStatusCode().value()).isEqualTo(404);
     }
 
-    // ─── GET /api/me/sessions/{id}/export ─────────────────────────
+    // ─── GET /api/me/sessions/{id}/report ─────────────────────────
 
     @Test
     @Severity(SeverityLevel.BLOCKER)
-    @DisplayName("GET /export → 401 без аутентификации")
-    void exportReturns401WhenNotAuthenticated() {
-        ResponseEntity<byte[]> res = controller.exportSession(null, "r1");
+    @DisplayName("GET /report → 401 без аутентификации")
+    void reportReturns401WhenNotAuthenticated() {
+        ResponseEntity<AccountController.SessionReport> res = controller.report(null, "r1");
         assertThat(res.getStatusCode().value()).isEqualTo(401);
     }
 
     @Test
     @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("GET /export → CSV с BOM, заголовком и строками бэклога")
-    void exportReturnsCsvForOwner() {
-        when(roomService.exportOwnedSession("r1", "u")).thenReturn(Optional.of(List.of(
-                new String[]{"Логин", "5"},
-                new String[]{"Оплата, картой", "8"}   // запятая → должна экранироваться
-        )));
-        ResponseEntity<byte[]> res = controller.exportSession(oauthUser("u"), "r1");
+    @DisplayName("GET /report → детальный отчёт владельца (задачи, оценки, голоса)")
+    void reportReturnsDetailForOwner() {
+        Room room = new Room("r1", "Спринт 7", Deck.FIBONACCI);
+        com.scrumpoker.model.BacklogItem item = new com.scrumpoker.model.BacklogItem("Логин");
+        item.setEstimate("5");
+        item.setRevotes(1);
+        item.setVotes(List.of(new com.scrumpoker.model.BacklogItem.RoundVote("Alice", "5")));
+        room.getBacklog().add(item);
+        when(roomService.loadOwnedRoom("r1", "u")).thenReturn(Optional.of(room));
+
+        ResponseEntity<AccountController.SessionReport> res = controller.report(oauthUser("u"), "r1");
 
         assertThat(res.getStatusCode().value()).isEqualTo(200);
-        assertThat(res.getHeaders().getFirst("Content-Disposition")).contains("session-r1.csv");
-        String csv = new String(res.getBody(), java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(csv).startsWith("﻿");                 // BOM
-        assertThat(csv).contains("Задача,Оценка");
-        assertThat(csv).contains("Логин,5");
-        assertThat(csv).contains("\"Оплата, картой\",8");     // экранирование запятой
+        AccountController.SessionReport body = res.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.roomName()).isEqualTo("Спринт 7");
+        assertThat(body.items()).hasSize(1);
+        assertThat(body.items().get(0).estimate()).isEqualTo("5");
+        assertThat(body.items().get(0).revotes()).isEqualTo(1);
+        assertThat(body.items().get(0).votes()).extracting("name").containsExactly("Alice");
     }
 
     @Test
-    @DisplayName("GET /export → 404, если сессия не найдена/не его")
-    void exportReturns404WhenNotOwned() {
-        when(roomService.exportOwnedSession("r1", "u")).thenReturn(Optional.empty());
-        ResponseEntity<byte[]> res = controller.exportSession(oauthUser("u"), "r1");
+    @DisplayName("GET /report → 404, если сессия не найдена/не его")
+    void reportReturns404WhenNotOwned() {
+        when(roomService.loadOwnedRoom("r1", "u")).thenReturn(Optional.empty());
+        ResponseEntity<AccountController.SessionReport> res = controller.report(oauthUser("u"), "r1");
         assertThat(res.getStatusCode().value()).isEqualTo(404);
     }
 
@@ -273,14 +278,14 @@ class AccountControllerTest {
     void createRoomLinksToAccount() {
         String userId = "user-5";
         Room room = new Room("abc12345", "Спринт 1", Deck.FIBONACCI);
-        when(roomService.createRoom("Спринт 1", Deck.FIBONACCI, userId)).thenReturn(room);
+        when(roomService.createRoom("Спринт 1", Deck.FIBONACCI, userId, null)).thenReturn(room);
 
         ResponseEntity<Map<String, String>> res = controller.createRoom(
                 oauthUser(userId),
-                new AccountController.CreateRoomRequest("Спринт 1", "FIBONACCI"));
+                new AccountController.CreateRoomRequest("Спринт 1", "FIBONACCI", null));
 
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         assertThat(res.getBody()).containsEntry("roomId", "abc12345");
-        verify(roomService).createRoom("Спринт 1", Deck.FIBONACCI, userId);
+        verify(roomService).createRoom("Спринт 1", Deck.FIBONACCI, userId, null);
     }
 }

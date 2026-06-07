@@ -32,6 +32,18 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Создание с задачами наполняет бэклог, первая — активна")
+    void createRoomWithTasksPrefillsBacklog() {
+        Room room = service.createRoom("Спринт", Deck.FIBONACCI, "owner-1",
+                java.util.List.of("Логин", "  ", "Корзина", ""));
+        assertThat(room.getBacklog()).hasSize(2);
+        assertThat(room.getBacklog().get(0).getTitle()).isEqualTo("Логин");
+        assertThat(room.getActiveItemId()).isEqualTo(room.getBacklog().get(0).getId());
+        assertThat(room.getCurrentStory()).isEqualTo("Логин");
+        assertThat(room.getOwnerUserId()).isEqualTo("owner-1");
+    }
+
+    @Test
     @DisplayName("Первый вошедший становится модератором")
     void firstJoinerBecomesModerator() {
         Room room = service.createRoom("Sprint", Deck.FIBONACCI);

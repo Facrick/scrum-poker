@@ -35,10 +35,11 @@ let _user = null; // профиль, нужен кнопке «Новая сес
         location.href = '/';
     });
 
-    // ── Новая сессия ──────────────────────────────────────────────
+    // ── Новая сессия (модалка) ────────────────────────────────────
     document.querySelectorAll('.btn-new-session').forEach(btn => {
-        btn.addEventListener('click', () => createSession(btn, user));
+        btn.addEventListener('click', openCreateModal);
     });
+    setupCreateModal();
 
     // ── История сессий + live-обновление опросом ──────────────────
     await loadSessions();
@@ -78,10 +79,31 @@ function startSessionPolling() {
     });
 }
 
-async function createSession(btn, user) {
-    const name = prompt('Название сессии:', 'Новая сессия');
-    if (name == null) return;                         // отмена
-    const roomName = name.trim() || 'Новая сессия';
+function openCreateModal() {
+    const overlay = document.getElementById('createModal');
+    document.getElementById('createName').value = 'Новая сессия';
+    document.getElementById('createTasks').value = '';
+    overlay.classList.remove('hidden');
+    setTimeout(() => document.getElementById('createName').focus(), 0);
+}
+
+function setupCreateModal() {
+    const overlay = document.getElementById('createModal');
+    const close = () => overlay.classList.add('hidden');
+    document.getElementById('createCancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) close();
+    });
+    document.getElementById('createConfirm').addEventListener('click', submitCreate);
+}
+
+async function submitCreate() {
+    const btn = document.getElementById('createConfirm');
+    const roomName = document.getElementById('createName').value.trim() || 'Новая сессия';
+    const tasks = document.getElementById('createTasks').value
+        .split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
     btn.disabled = true;
     const prev = btn.textContent;
     btn.textContent = '…';
@@ -89,12 +111,12 @@ async function createSession(btn, user) {
         const res = await spAuth.fetch('/api/me/rooms', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: roomName, deck: 'FIBONACCI' })
+            body: JSON.stringify({ name: roomName, deck: 'FIBONACCI', tasks })
         });
         if (!res.ok) throw new Error('create failed');
         const { roomId } = await res.json();
         // Сохраняем имя, чтобы лобби подхватило → сразу войдём как ведущий
-        localStorage.setItem('sp_name', user.displayName || 'Модератор');
+        localStorage.setItem('sp_name', currentUser().displayName || 'Модератор');
         location.href = '/?room=' + encodeURIComponent(roomId) + '&host=1';
     } catch {
         btn.disabled = false;
@@ -130,9 +152,8 @@ function renderSessions(sessions) {
                 Создайте комнату — она появится здесь, а вы сразу станете ведущим.
                 <div><button class="btn-new-session">+ Новая сессия</button></div>
             </div>`;
-        // Кнопка из пустого состояния тоже должна работать
-        grid.querySelector('.btn-new-session')
-            .addEventListener('click', (e) => createSession(e.currentTarget, currentUser()));
+        // Кнопка из пустого состояния тоже открывает модалку
+        grid.querySelector('.btn-new-session').addEventListener('click', openCreateModal);
         return;
     }
 
@@ -189,7 +210,7 @@ function sessionCard(s) {
                 : ''}
             <button class="act-btn" data-copy="${esc(inviteUrl)}" title="Скопировать ссылку-приглашение">🔗</button>
             <a class="act-btn" href="/results?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊</a>
-            <button class="act-btn" data-export title="Экспорт в CSV">⬇</button>
+            <button class="act-btn" data-export title="Экспорт отчёта в Excel">⬇</button>
             <button class="act-btn" data-rename title="Переименовать">✎</button>
             <button class="act-btn act-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>
         </div>
@@ -246,20 +267,61 @@ async function deleteSession(s) {
 
 async function exportSession(s) {
     try {
-        const res = await spAuth.fetch('/api/me/sessions/' + encodeURIComponent(s.roomId) + '/export');
+        const res = await spAuth.fetch('/api/me/sessions/' + encodeURIComponent(s.roomId) + '/report');
         if (res.status === 404) { toast('Данные сессии больше недоступны для экспорта'); return; }
         if (!res.ok) throw new Error();
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = (s.roomName || s.roomId) + '.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        toast('CSV скачан', true);
+        const data = await res.json();
+        buildReportXlsx(data, s.roomId);
+        toast('Excel-отчёт скачан', true);
     } catch { toast('Не удалось экспортировать'); }
+}
+
+/** Собирает Excel-отчёт по сессии: лист «Сводка» + лист «Голоса по задачам». */
+function buildReportXlsx(data, roomId) {
+    const items = data.items || [];
+    const isNum = v => v != null && v !== '' && isFinite(parseFloat(v));
+    const estimated = items.filter(i => i.estimate != null && i.estimate !== '').length;
+    const sumPoints = items.reduce((n, i) => n + (isNum(i.estimate) ? parseFloat(i.estimate) : 0), 0);
+    const consensusOf = it => {
+        if (!it.votes || it.votes.length === 0) return '';
+        const vals = new Set(it.votes.map(v => v.value));
+        return vals.size === 1 ? 'Да' : 'Нет';
+    };
+
+    // ── Лист «Сводка» ──
+    const summary = [
+        ['Сессия', data.roomName || roomId],
+        ['Код комнаты', roomId],
+        ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
+        ['Всего задач', items.length],
+        ['Оценено', estimated],
+        ['Сумма оценок (числовых)', Math.round(sumPoints * 10) / 10],
+        [],
+        ['№', 'Задача', 'Оценка', 'Переголосований', 'Консенсус', 'Голоса']
+    ];
+    items.forEach((it, i) => {
+        const votesStr = (it.votes || []).map(v => `${v.name}: ${v.value}`).join('; ');
+        summary.push([i + 1, it.title, it.estimate || '', it.revotes || 0, consensusOf(it), votesStr]);
+    });
+    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+    wsSummary['!cols'] = [{ wch: 4 }, { wch: 40 }, { wch: 8 }, { wch: 16 }, { wch: 11 }, { wch: 50 }];
+
+    // ── Лист «Голоса» (по строке на голос) ──
+    const votesRows = [['Задача', 'Оценка', 'Участник', 'Голос']];
+    items.forEach(it => {
+        if (it.votes && it.votes.length) {
+            it.votes.forEach(v => votesRows.push([it.title, it.estimate || '', v.name, v.value]));
+        } else {
+            votesRows.push([it.title, it.estimate || '', '—', '—']);
+        }
+    });
+    const wsVotes = XLSX.utils.aoa_to_sheet(votesRows);
+    wsVotes['!cols'] = [{ wch: 40 }, { wch: 8 }, { wch: 24 }, { wch: 10 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка');
+    XLSX.utils.book_append_sheet(wb, wsVotes, 'Голоса');
+    XLSX.writeFile(wb, (data.roomName || roomId) + '.xlsx');
 }
 
 /** Принудительно перечитать список (сбросив кэш сравнения). */

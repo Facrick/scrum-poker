@@ -202,6 +202,29 @@
         @media (max-width: 560px) {
             .stats-row { grid-template-columns: 1fr 1fr; }
         }
+
+        /* Модалка создания сессии */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.55);
+            display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 100;
+        }
+        .modal {
+            width: 100%; max-width: 460px;
+            background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
+            padding: 1.5rem;
+        }
+        .modal-title { font-size: 1.15rem; font-weight: 800; color: var(--text); margin-bottom: 1.1rem; }
+        .modal-field { display: block; margin-bottom: 1rem; }
+        .modal-field > span { display: block; font-size: .82rem; color: var(--text-muted); margin-bottom: .4rem; }
+        .modal-field > span em { font-style: normal; opacity: .8; }
+        .modal-field input, .modal-field textarea {
+            width: 100%; box-sizing: border-box;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); font-family: inherit; font-size: .9rem; padding: .6rem .7rem;
+        }
+        .modal-field textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+        .modal-field input:focus, .modal-field textarea:focus { outline: none; border-color: var(--accent); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: .4rem; }
     </style>
 </head>
 <body>
@@ -258,8 +281,28 @@
 
 </div>
 
+<!-- Модалка создания сессии -->
+<div id="createModal" class="modal-overlay hidden">
+    <div class="modal">
+        <div class="modal-title">Новая сессия</div>
+        <label class="modal-field">
+            <span>Название</span>
+            <input id="createName" type="text" maxlength="80" placeholder="Например, Спринт 42" autocomplete="off">
+        </label>
+        <label class="modal-field">
+            <span>Задачи <em>(по одной в строке, можно вставить список — необязательно)</em></span>
+            <textarea id="createTasks" placeholder="Авторизация&#10;Корзина&#10;Оплата"></textarea>
+        </label>
+        <div class="modal-actions">
+            <button id="createCancel" class="btn-logout">Отмена</button>
+            <button id="createConfirm" class="btn-new-session">Создать и войти →</button>
+        </div>
+    </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="auth.js?v=dev"></script>
 <script src="account.js?v=dev"></script>
 </body>
