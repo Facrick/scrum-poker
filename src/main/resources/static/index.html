@@ -136,15 +136,20 @@
             <span class="mod-spacer"></span>
             <button id="revealBtn" class="btn btn-primary btn-sm">Вскрыть карты</button>
             <button id="resetBtn"  class="btn btn-secondary btn-sm">Новый раунд</button>
+            <span class="mod-sep"></span>
+            <button id="asyncToggle" class="btn btn-ghost btn-sm" title="Асинхронная оценка всего бэклога">Async: выкл</button>
         </div>
     </section>
 
     <div class="room-body">
-        <section class="stage">
+        <section id="stage" class="stage">
             <div id="table" class="table"></div>
             <div id="results" class="results hidden"></div>
             <div id="waitHint" class="wait-hint"></div>
         </section>
+
+        <!-- Async-доска: голосование по всему бэклогу -->
+        <section id="asyncBoard" class="async-board hidden"></section>
 
         <aside id="backlogPanel" class="backlog-panel hidden">
             <div class="backlog-header">

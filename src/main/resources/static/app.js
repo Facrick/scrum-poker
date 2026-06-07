@@ -253,14 +253,116 @@ function render(state) {
     const online = state.participants.filter(p => p.online).length;
     $("onlineCount").textContent = online + " онлайн";
 
+    const async = !!state.async;
+    // Переключаемся между обычным режимом и async-доской.
+    $("stage").classList.toggle("hidden", async);
+    $("asyncBoard").classList.toggle("hidden", !async);
+    $("deckBar").classList.toggle("hidden", async || myRole === "OBSERVER");
+    // Sync-кнопки раунда не нужны в async-режиме
+    $("revealBtn").classList.toggle("hidden", async);
+    $("resetBtn").classList.toggle("hidden", async);
+
     renderDeckSelector(state);
     renderTimer(state);
     renderModButtons(state);
-    renderTable(state);
-    renderDeck(state);
-    renderResults(state);
-    renderWaitHint(state);
+    if (async) {
+        renderAsyncBoard(state);
+    } else {
+        renderTable(state);
+        renderDeck(state);
+        renderResults(state);
+        renderWaitHint(state);
+    }
     renderBacklog(state);
+    updateAsyncToggle(state);
+}
+
+// ---------- Async-доска (#3) ----------
+function asyncVotesKey() { return "sp_async_" + roomId; }
+function loadAsyncVotes() {
+    try { return JSON.parse(localStorage.getItem(asyncVotesKey()) || "{}"); } catch { return {}; }
+}
+function saveAsyncVote(itemId, value) {
+    const m = loadAsyncVotes(); m[itemId] = value;
+    localStorage.setItem(asyncVotesKey(), JSON.stringify(m));
+}
+
+function updateAsyncToggle(state) {
+    const btn = $("asyncToggle");
+    if (myRole !== "MODERATOR") { btn.classList.add("hidden"); return; }
+    btn.classList.remove("hidden");
+    btn.textContent = state.async ? "Async: вкл" : "Async: выкл";
+    btn.classList.toggle("btn-primary", !!state.async);
+    btn.onclick = () => send("async", { participantId: myId, enabled: !state.async });
+}
+
+function renderAsyncBoard(state) {
+    const board = $("asyncBoard");
+    board.innerHTML = "";
+    const items = state.backlog || [];
+    if (items.length === 0) {
+        board.innerHTML = `<div class="async-empty">Бэклог пуст. Добавьте задачи (панель «Бэклог»), и команда сможет голосовать.</div>`;
+        return;
+    }
+    const myVotes = loadAsyncVotes();
+    const isMod = myRole === "MODERATOR";
+    const isObserver = myRole === "OBSERVER";
+
+    items.forEach(item => {
+        const done = !!item.estimate;
+        const card = document.createElement("div");
+        card.className = "async-card" + (item.itemRevealed ? " revealed" : "") + (done ? " done" : "");
+
+        const status = done ? `<span class="async-status done">Оценка: ${escapeHtml(item.estimate)}</span>`
+            : item.itemRevealed ? `<span class="async-status">Вскрыто</span>`
+            : `<span class="async-status">${item.voteCount} голос(ов)</span>`;
+
+        let html = `<div class="async-card-head">
+            <span class="async-title">${escapeHtml(item.title)}</span>${status}
+        </div>`;
+
+        // Голосование участника (пока задача не вскрыта)
+        if (!isObserver && !item.itemRevealed) {
+            html += `<div class="async-vote-row">` +
+                state.cards.map(c => {
+                    const picked = myVotes[item.id] === c;
+                    return `<button class="av${picked ? " picked" : ""}" data-vote="${escapeHtml(c)}">${escapeHtml(c)}</button>`;
+                }).join("") + `</div>`;
+        }
+
+        // После вскрытия — кто как проголосовал
+        if (item.itemRevealed && item.votes && item.votes.length) {
+            html += `<div class="async-votes">` +
+                item.votes.map(v => `<span class="async-chip">${escapeHtml(v.name)}<b>${escapeHtml(v.value)}</b></span>`).join("") +
+                `</div>`;
+        }
+
+        // Управление ведущего
+        if (isMod && !done) {
+            if (!item.itemRevealed) {
+                html += `<div class="async-mod"><button class="btn btn-primary btn-sm" data-reveal>Вскрыть (${item.voteCount})</button></div>`;
+            } else {
+                html += `<div class="async-mod"><span class="lbl">Зафиксировать:</span>` +
+                    state.cards.map(c => `<button class="async-fin" data-fin="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("") +
+                    `</div>`;
+            }
+        }
+
+        card.innerHTML = html;
+
+        card.querySelectorAll("[data-vote]").forEach(b => b.addEventListener("click", () => {
+            const val = b.dataset.vote;
+            saveAsyncVote(item.id, val);
+            send("backlog/vote", { participantId: myId, itemId: item.id, value: val });
+            renderAsyncBoard(state); // мгновенно подсветить выбор
+        }));
+        const rev = card.querySelector("[data-reveal]");
+        if (rev) rev.addEventListener("click", () => send("backlog/reveal", { participantId: myId, itemId: item.id }));
+        card.querySelectorAll("[data-fin]").forEach(b => b.addEventListener("click", () =>
+            send("backlog/estimate", { participantId: myId, itemId: item.id, value: b.dataset.fin })));
+
+        board.appendChild(card);
+    });
 }
 
 // ---------- Кнопки модератора ----------

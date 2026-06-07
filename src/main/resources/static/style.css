@@ -846,6 +846,49 @@ html[data-theme="light"] .seat .card-slot.revealed {
 
 .deck-hint { color: var(--muted); font-size: 12px; margin: 0; }
 
+/* ===== Async-доска (#3) ===== */
+.async-board {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px; align-content: start;
+}
+.async-card {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+    border-left: 3px solid transparent;
+}
+.async-card.revealed { border-left-color: var(--warn); }
+.async-card.done { border-left-color: var(--success); }
+.async-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.async-title { font-weight: 600; color: var(--text); word-break: break-word; }
+.async-status { flex-shrink: 0; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.async-status.done { color: var(--success); }
+.async-vote-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.async-vote-row .av {
+    min-width: 34px; height: 38px; padding: 0 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    border-radius: 8px; font-weight: 700; cursor: pointer;
+    transition: border-color .12s, background .12s, transform .12s;
+}
+.async-vote-row .av:hover:not(:disabled) { border-color: var(--primary); transform: translateY(-2px); }
+.async-vote-row .av.picked { background: linear-gradient(160deg, var(--primary) 0%, var(--primary-d) 100%); color: #fff; border-color: transparent; }
+.async-vote-row .av:disabled { opacity: .4; cursor: not-allowed; }
+.async-votes { display: flex; flex-wrap: wrap; gap: 5px; }
+.async-chip {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--muted);
+}
+.async-chip b { color: var(--text); }
+.async-mod { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+.async-mod .lbl { font-size: 11px; color: var(--muted); }
+.async-fin {
+    min-width: 30px; height: 30px; padding: 0 7px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer;
+}
+.async-fin:hover { border-color: var(--success); color: var(--success); }
+.async-empty { grid-column: 1/-1; text-align: center; color: var(--muted); padding: 40px; }
+
 /* =====================================================
    Backlog panel
    ===================================================== */
