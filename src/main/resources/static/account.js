@@ -180,6 +180,7 @@ function sessionCard(s) {
         <div class="sess-foot">
             <span class="sess-date">${fmtDate(s.lastActiveAt)}</span>
             <div class="sess-card-actions">
+                <a class="icon-btn" href="/results?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊 Итоги</a>
                 <button class="icon-btn" data-export title="Экспорт в CSV">⬇ CSV</button>
                 <button class="icon-btn" data-rename title="Переименовать">✎</button>
                 <button class="icon-btn icon-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>

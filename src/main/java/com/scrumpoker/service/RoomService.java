@@ -205,6 +205,22 @@ public class RoomService {
         });
     }
 
+    /**
+     * Загрузить комнату из памяти или (если уже не активна) из снимка БД.
+     * Используется публичной страницей итогов — без проверки владельца.
+     */
+    public Optional<Room> loadAnyRoom(String roomId) {
+        Room live = rooms.get(roomId);
+        if (live != null) return Optional.of(live);
+        return roomRepository.findById(roomId).flatMap(json -> {
+            try {
+                return Optional.of(objectMapper.readValue(json, RoomSnapshot.class).toRoom());
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        });
+    }
+
     public void removeEmptyRoom(Room room) {
         rooms.remove(room.getId());
         roomRepository.delete(room.getId());

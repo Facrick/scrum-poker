@@ -14,6 +14,7 @@ public class WebConfig implements WebMvcConfigurer {
         // Чистые URL → статические файлы
         registry.addViewController("/login").setViewName("forward:/login.html");
         registry.addViewController("/account").setViewName("forward:/account.html");
+        registry.addViewController("/results").setViewName("forward:/results.html");
     }
 
     /**

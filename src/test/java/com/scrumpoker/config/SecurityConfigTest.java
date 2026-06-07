@@ -84,6 +84,14 @@ class SecurityConfigTest {
 
     @Test
     @Severity(SeverityLevel.NORMAL)
+    @DisplayName("GET /api/public/sessions/{id} доступен без входа (404, а не 401)")
+    void publicSummaryIsAccessibleWithoutAuth() throws Exception {
+        mvc.perform(get("/api/public/sessions/nonexistent"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @Severity(SeverityLevel.NORMAL)
     @DisplayName("GET /login (страница входа) доступна без аутентификации → 200")
     void loginPageIsPublic() throws Exception {
         mvc.perform(get("/login"))

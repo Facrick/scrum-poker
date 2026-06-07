@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Итоги сессии — Scrum Poker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=23">
+    <style>
+        body { background: var(--bg); }
+        .res-layout { max-width: 720px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+        .res-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; gap: .75rem; flex-wrap: wrap; }
+        .res-brand { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--text); font-weight: 700; }
+        .res-brand .suit { color: var(--accent); font-size: 1.2rem; }
+        .res-head { margin-bottom: 1.25rem; }
+        .res-title { font-size: 1.4rem; font-weight: 800; color: var(--text); word-break: break-word; }
+        .res-sub { margin-top: .35rem; font-size: .85rem; color: var(--text-muted); }
+        .res-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; overflow: hidden; }
+        .res-row { display: flex; align-items: center; gap: .75rem; padding: .8rem 1.1rem; border-bottom: 1px solid var(--border); }
+        .res-row:last-child { border-bottom: none; }
+        .res-row .num { width: 1.5rem; color: var(--text-muted); font-size: .8rem; flex-shrink: 0; }
+        .res-row .ttl { flex: 1; color: var(--text); word-break: break-word; }
+        .res-row .est { font-weight: 800; color: var(--success); background: var(--success-l); padding: .15rem .6rem; border-radius: 6px; white-space: nowrap; }
+        .res-row .est.none { color: var(--text-muted); background: var(--bg); font-weight: 600; }
+        .res-row .rev { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
+        .res-empty, .res-error { padding: 3rem 1.5rem; text-align: center; color: var(--text-muted); }
+        .btn-copy { background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; color: var(--text-muted); cursor: pointer; }
+        .btn-copy:hover { border-color: var(--accent); color: var(--text); }
+        .toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(1rem); background: var(--card); border: 1px solid var(--border); color: var(--text); padding: .6rem 1rem; border-radius: 10px; font-size: .85rem; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { border-color: var(--success); }
+    </style>
+</head>
+<body>
+<div class="res-layout">
+    <nav class="res-topbar">
+        <a class="res-brand" href="/"><span class="suit">♠</span> Scrum Poker</a>
+        <button class="btn-copy" id="copyBtn">Скопировать ссылку</button>
+    </nav>
+
+    <div id="content">
+        <div class="res-empty">Загрузка…</div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="results.js?v=1"></script>
+</body>
+</html>
