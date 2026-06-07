@@ -51,43 +51,27 @@ public class SecurityConfig {
                 // из-за чего JSESSIONID не сохраняется в браузере и сессия теряется.
                 // 200-ответ с <meta refresh> гарантирует, что cookie установлен до перехода.
                 .successHandler((req, res, auth) -> {
-                    // Явно сохраняем SecurityContext в сессию — страховка от Spring Security 6,
-                    // где requireExplicitSave=true и контекст может не попасть в сессию автоматически.
+                    // Сохраняем SecurityContext в сессию явно.
                     HttpSession session = req.getSession(true);
                     SecurityContext ctx = SecurityContextHolder.getContext();
                     ctx.setAuthentication(auth);
                     session.setAttribute(
                         HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, ctx);
 
-                    // Отдаём 200 + диагностическую страницу.
-                    // JS делает fetch('/api/me') — если 200, значит сессия живая → редирект.
-                    // Если 401 — показываем отладочную информацию вместо тихого loop-а.
+                    // Railway обрезает Set-Cookie заголовки из ЛЮБЫХ ответов (подтверждено).
+                    // Обходное решение: кладём sessionId прямо в тело HTML,
+                    // JS устанавливает JSESSIONID через document.cookie — тело Railway не трогает.
+                    String sid = session.getId();
                     res.setContentType("text/html;charset=UTF-8");
                     res.setHeader("Cache-Control", "no-store");
                     res.getWriter().write("""
-                        <!doctype html><html><head><title>Входим...</title>
-                        <style>body{font-family:sans-serif;padding:2rem;background:#0d1117;color:#e6edf3}
-                        .ok{color:#3fb950}.err{color:#f85149}pre{background:#161b22;padding:1rem;border-radius:8px;font-size:.85rem}</style>
-                        </head><body>
-                        <p id="msg">Проверяем сессию…</p>
+                        <!doctype html><html><head><title>Входим...</title></head><body>
                         <script>
-                        fetch('/api/me',{credentials:'include'}).then(async r=>{
-                          const txt = await r.text();
-                          if(r.ok){
-                            document.getElementById('msg').textContent='✓ Авторизован, переходим…';
-                            location.replace('/account');
-                          } else {
-                            document.getElementById('msg').innerHTML =
-                              '<span class=\\"err\\">✗ Сессия не установлена ('+r.status+')</span><br>' +
-                              '<pre>'+txt+'</pre>' +
-                              '<p>Скопируйте эту страницу и отправьте разработчику.</p>';
-                          }
-                        }).catch(e=>{
-                          document.getElementById('msg').innerHTML='<span class=\\"err\\">Ошибка сети: '+e+'</span>';
-                        });
+                        document.cookie = 'JSESSIONID=%s; path=/; SameSite=Lax';
+                        location.replace('/account');
                         </script>
                         </body></html>
-                        """);
+                        """.formatted(sid));
                 })
                 .failureUrl("/login?error=true")
             )
