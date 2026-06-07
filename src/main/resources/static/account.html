@@ -118,42 +118,46 @@
         .sess-status.live { color: var(--success); background: var(--success-l); }
         .sess-status.done { color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); }
 
-        .sess-id { display: flex; align-items: center; gap: .4rem; }
+        /* Мета-строка: id · участники · дата */
+        .sess-id { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; font-size: .76rem; color: var(--text-muted); }
         .sess-id code {
             font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            font-size: .76rem; color: var(--text-muted);
+            font-size: .74rem; color: var(--text-muted);
             background: var(--bg); border: 1px solid var(--border);
             padding: .1rem .4rem; border-radius: 6px;
         }
-        .icon-btn {
-            display: inline-flex; align-items: center;
-            background: none; border: 1px solid var(--border); border-radius: 6px;
-            color: var(--text-muted); cursor: pointer; font-size: .72rem;
-            padding: .12rem .4rem; transition: border-color .15s, color .15s;
-            text-decoration: none;
-        }
-        .icon-btn:hover { border-color: var(--border-2); color: var(--text); }
-        .icon-btn.icon-danger:hover { border-color: var(--danger); color: var(--danger); }
+        .sess-dot { opacity: .5; }
+        .sess-people, .sess-date { white-space: nowrap; }
 
-        .sess-card-actions { display: flex; align-items: center; gap: .4rem; }
-
-        .sess-metrics { display: flex; gap: 1.25rem; }
-        .metric-mini { display: flex; flex-direction: column; gap: .15rem; }
-        .metric-mini .mv { font-weight: 700; font-size: .9rem; color: var(--text); }
-        .metric-mini .ml { font-size: .72rem; color: var(--text-muted); }
-
-        .progress-wrap { flex: 1; min-width: 0; }
-        .progress-track { height: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; margin-top: .35rem; }
+        /* Задачи + прогресс */
+        .sess-tasks { display: flex; flex-direction: column; gap: .35rem; }
+        .sess-tasks-row { display: flex; align-items: baseline; justify-content: space-between; }
+        .sess-tasks-label { font-size: .78rem; color: var(--text-muted); }
+        .sess-tasks-count { font-size: .82rem; font-weight: 700; color: var(--text); }
+        .progress-track { height: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; }
         .progress-fill { height: 100%; border-radius: 999px; background: var(--success); transition: width .3s; }
         .progress-fill.partial { background: var(--accent); }
 
-        .sess-foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .1rem; }
-        .sess-date { font-size: .74rem; color: var(--text-muted); white-space: nowrap; }
+        /* Действия */
+        .sess-actions {
+            display: flex; align-items: center; gap: .4rem;
+            margin-top: .15rem; padding-top: .7rem; border-top: 1px solid var(--border);
+        }
         .sess-enter {
-            font-size: .82rem; font-weight: 600; color: #fff; background: var(--accent);
-            text-decoration: none; padding: .35rem .75rem; border-radius: 8px; transition: opacity .15s;
+            flex: 1; text-align: center;
+            font-size: .85rem; font-weight: 600; color: #fff; background: var(--accent);
+            text-decoration: none; padding: .4rem .75rem; border-radius: 8px; transition: opacity .15s;
         }
         .sess-enter:hover { opacity: .85; }
+        .act-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; flex-shrink: 0;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text-muted); cursor: pointer; font-size: .85rem;
+            text-decoration: none; transition: border-color .15s, color .15s, background .15s;
+        }
+        .act-btn:hover { border-color: var(--border-2); color: var(--text); }
+        .act-btn.act-danger:hover { border-color: var(--danger); color: var(--danger); }
 
         /* Пустое состояние */
         .sessions-empty {

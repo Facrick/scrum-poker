@@ -79,6 +79,9 @@ function startSessionPolling() {
 }
 
 async function createSession(btn, user) {
+    const name = prompt('Название сессии:', 'Новая сессия');
+    if (name == null) return;                         // отмена
+    const roomName = name.trim() || 'Новая сессия';
     btn.disabled = true;
     const prev = btn.textContent;
     btn.textContent = '…';
@@ -86,7 +89,7 @@ async function createSession(btn, user) {
         const res = await spAuth.fetch('/api/me/rooms', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: 'Новая сессия', deck: 'FIBONACCI' })
+            body: JSON.stringify({ name: roomName, deck: 'FIBONACCI' })
         });
         if (!res.ok) throw new Error('create failed');
         const { roomId } = await res.json();
@@ -150,17 +153,17 @@ function sessionCard(s) {
         ? `<span class="sess-status live">● Активна</span>`
         : `<span class="sess-status done">Завершена</span>`;
 
-    const progressHtml = s.taskCount > 0
-        ? `<div class="progress-wrap">
-               <div class="metric-mini">
-                   <span class="mv">${s.estimatedCount}/${s.taskCount}</span>
-                   <span class="ml">задач оценено</span>
+    const tasksHtml = s.taskCount > 0
+        ? `<div class="sess-tasks">
+               <div class="sess-tasks-row">
+                   <span class="sess-tasks-label">Задачи оценены</span>
+                   <span class="sess-tasks-count">${s.estimatedCount}/${s.taskCount}</span>
                </div>
                <div class="progress-track">
                    <div class="progress-fill ${done ? '' : 'partial'}" style="width:${pct}%"></div>
                </div>
            </div>`
-        : `<div class="metric-mini"><span class="mv">—</span><span class="ml">нет задач</span></div>`;
+        : `<div class="sess-tasks"><span class="sess-tasks-label">Задач пока нет</span></div>`;
 
     el.innerHTML = `
         <div class="sess-head">
@@ -169,25 +172,26 @@ function sessionCard(s) {
                 : `<span class="sess-name" style="cursor:default">${esc(s.roomName || s.roomId)}</span>`}
             ${statusHtml}
         </div>
+
         <div class="sess-id">
             <code>${esc(s.roomId)}</code>
-            <button class="icon-btn" data-copy="${esc(inviteUrl)}" title="Скопировать ссылку-приглашение">⎘ ссылка</button>
-        </div>
-        <div class="sess-metrics">
-            <div class="metric-mini"><span class="mv">${s.participantCount}</span><span class="ml">участников</span></div>
-            ${progressHtml}
-        </div>
-        <div class="sess-foot">
+            <span class="sess-dot">·</span>
+            <span class="sess-people">👥 ${s.participantCount}</span>
+            <span class="sess-dot">·</span>
             <span class="sess-date">${fmtDate(s.lastActiveAt)}</span>
-            <div class="sess-card-actions">
-                <a class="icon-btn" href="/results?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊 Итоги</a>
-                <button class="icon-btn" data-export title="Экспорт в CSV">⬇ CSV</button>
-                <button class="icon-btn" data-rename title="Переименовать">✎</button>
-                <button class="icon-btn icon-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>
-                ${s.alive
-                    ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти →</a>`
-                    : ''}
-            </div>
+        </div>
+
+        ${tasksHtml}
+
+        <div class="sess-actions">
+            ${s.alive
+                ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти →</a>`
+                : ''}
+            <button class="act-btn" data-copy="${esc(inviteUrl)}" title="Скопировать ссылку-приглашение">🔗</button>
+            <a class="act-btn" href="/results?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊</a>
+            <button class="act-btn" data-export title="Экспорт в CSV">⬇</button>
+            <button class="act-btn" data-rename title="Переименовать">✎</button>
+            <button class="act-btn act-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>
         </div>
     `;
 
