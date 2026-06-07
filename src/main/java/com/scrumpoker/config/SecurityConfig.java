@@ -35,7 +35,21 @@ public class SecurityConfig {
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
                 .userInfoEndpoint(ui -> ui.userService(oauthUserService))
-                .defaultSuccessUrl("/account", true)
+                // Отдаём 200 + JS-редирект вместо 302.
+                // Railway (и другие reverse-proxy) иногда обрезают Set-Cookie в 302-ответах,
+                // из-за чего JSESSIONID не сохраняется в браузере и сессия теряется.
+                // 200-ответ с <meta refresh> гарантирует, что cookie установлен до перехода.
+                .successHandler((req, res, auth) -> {
+                    res.setContentType("text/html;charset=UTF-8");
+                    res.setHeader("Cache-Control", "no-store");
+                    res.getWriter().write("""
+                        <!doctype html><html><head>
+                        <meta http-equiv="refresh" content="0;url=/account">
+                        </head><body>
+                        <script>location.replace('/account');</script>
+                        </body></html>
+                        """);
+                })
                 .failureUrl("/login?error=true")
             )
 
