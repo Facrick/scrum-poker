@@ -47,6 +47,12 @@ public class JwtService {
 
     /** Выпускает подписанный токен для пользователя. */
     public String issue(String userId) {
+        if (userId == null || userId.isBlank()) {
+            // Защита от регресса: если принципал не содержит _userId (например,
+            // провайдер пошёл по OIDC-ветке мимо OAuthUserService), лучше упасть
+            // явно, чем выдать токен без subject и получить молчаливый 401 на /api/me.
+            throw new IllegalArgumentException("Не могу выпустить JWT: userId пуст");
+        }
         Date now = new Date();
         return Jwts.builder()
                 .subject(userId)
