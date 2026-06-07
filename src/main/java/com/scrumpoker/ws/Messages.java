@@ -24,4 +24,5 @@ public final class Messages {
     public record AddBacklogItemMessage(String participantId, String title) {}
     public record RemoveBacklogItemMessage(String participantId, String itemId) {}
     public record ActivateBacklogItemMessage(String participantId, String itemId) {}
+    public record ImportBacklogMessage(String participantId, java.util.List<String> titles) {}
 }

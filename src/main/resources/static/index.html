@@ -6,7 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=21">
+    <link rel="stylesheet" href="style.css?v=22">
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
@@ -136,6 +136,11 @@
                 <button id="exportCsvBtn" class="btn btn-ghost btn-sm">Экспорт XLS</button>
             </div>
             <div id="backlogList" class="backlog-list"></div>
+            <div id="backlogImport" class="backlog-import hidden">
+                <textarea id="backlogImportInput" class="backlog-import-input"
+                          placeholder="Добавить списком — по одной задаче в строке&#10;Например:&#10;Авторизация&#10;Корзина&#10;Оплата"></textarea>
+                <button id="backlogImportBtn" class="btn btn-ghost btn-sm">+ Добавить списком</button>
+            </div>
         </aside>
     </div>
 
@@ -148,6 +153,6 @@
 <div id="toast" class="toast"></div>
 
 <script src="auth.js?v=1"></script>
-<script src="app.js?v=25"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>

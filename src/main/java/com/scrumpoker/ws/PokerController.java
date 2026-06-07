@@ -270,6 +270,22 @@ public class PokerController {
         broadcast(room);
     }
 
+    @MessageMapping("/room/{roomId}/backlog/import")
+    public void importBacklog(@DestinationVariable String roomId, @Payload Messages.ImportBacklogMessage msg,
+                              SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.titles() == null) return;
+        for (String raw : msg.titles()) {
+            if (room.getBacklog().size() >= 200) break;
+            if (raw == null) continue;
+            String title = raw.strip();
+            if (title.isEmpty()) continue;
+            if (title.length() > 120) title = title.substring(0, 120);
+            room.getBacklog().add(new BacklogItem(title));
+        }
+        broadcast(room);
+    }
+
     @MessageMapping("/room/{roomId}/backlog/remove")
     public void removeBacklogItem(@DestinationVariable String roomId, @Payload Messages.RemoveBacklogItemMessage msg,
                                   SimpMessageHeaderAccessor headers) {

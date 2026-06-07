@@ -191,6 +191,30 @@ class PokerControllerTest {
         assertThat(reply.get("role")).isEqualTo("PLAYER");
     }
 
+    // ---- Импорт бэклога списком ----
+
+    @Test
+    @DisplayName("Импорт списком добавляет задачи, пропуская пустые строки")
+    void importBacklogAddsItemsSkippingBlanks() {
+        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
+        controller.importBacklog(room.getId(),
+                new Messages.ImportBacklogMessage(alice, List.of("Авторизация", "  ", "Корзина", "")),
+                session("s1"));
+        assertThat(room.getBacklog()).hasSize(2);
+        assertThat(room.getBacklog().get(0).getTitle()).isEqualTo("Авторизация");
+        assertThat(room.getBacklog().get(1).getTitle()).isEqualTo("Корзина");
+    }
+
+    @Test
+    @DisplayName("Импорт от игрока (не модератора) игнорируется")
+    void importBacklogRejectedForNonModerator() {
+        join("Alice", "PLAYER", null, "s1");                  // модератор
+        join("Bob", "PLAYER", null, "s2");                    // игрок
+        controller.importBacklog(room.getId(),
+                new Messages.ImportBacklogMessage("any", List.of("X")), session("s2"));
+        assertThat(room.getBacklog()).isEmpty();
+    }
+
     // ---- Прогресс по бэклогу ----
 
     @Test

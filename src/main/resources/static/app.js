@@ -530,6 +530,9 @@ function renderBacklog(state) {
     }
     panel.classList.toggle("hidden", !backlogOpen);
 
+    // Блок импорта списком — только ведущему
+    $("backlogImport").classList.toggle("hidden", myRole !== "MODERATOR");
+
     if (!state.backlog) return;
     list.innerHTML = "";
     state.backlog.forEach(item => {
@@ -652,6 +655,16 @@ $("stopTimerBtn").addEventListener("click", () => send("timer/stop", { participa
 $("toggleBacklogBtn").addEventListener("click", () => {
     backlogOpen = !backlogOpen;
     $("backlogPanel").classList.toggle("hidden", !backlogOpen);
+});
+
+$("backlogImportBtn").addEventListener("click", () => {
+    const raw = $("backlogImportInput").value;
+    const titles = raw.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+    if (titles.length === 0) { toast("Вставьте хотя бы одну задачу"); return; }
+    if (titles.length > 200) { toast("Не более 200 задач за раз"); return; }
+    send("backlog/import", { participantId: myId, titles });
+    $("backlogImportInput").value = "";
+    toast(`Добавлено задач: ${titles.length}`, true);
 });
 
 $("exportCsvBtn").addEventListener("click", exportCsv);
