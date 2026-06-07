@@ -94,6 +94,38 @@ docker compose up -d --build app
 | `GITHUB_CLIENT_SECRET` | —                   | OAuth2 GitHub: Client Secret            |
 | `JWT_SECRET`     | dev-ключ (небезопасно)    | Секрет подписи JWT ЛК, ≥ 32 байт — **обязателен в production** |
 | `JWT_TTL_HOURS`  | `168`                     | Срок жизни токена ЛК в часах (7 дней)   |
+| `DATABASE_URL`   | H2 in-memory              | Postgres — **обязателен в production**, иначе данные теряются при рестарте |
+
+---
+
+## База данных (важно для Railway!)
+
+Без `DATABASE_URL` приложение работает на **H2 in-memory** — все сессии и
+комнаты **стираются при каждом рестарте/редеплое**. В логах при старте будет
+громкое предупреждение об этом.
+
+### Railway
+
+1. В проекте добавьте плагин **Postgres** (New → Database → PostgreSQL).
+2. В сервисе приложения добавьте переменную-ссылку:
+   ```
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   ```
+   Railway отдаёт её в формате `postgresql://user:pass@host:port/db` —
+   приложение само сконвертирует её в JDBC (см.
+   `RailwayDatabaseEnvironmentPostProcessor`), отдельный драйвер указывать не нужно.
+3. Передеплойте. В логах должно появиться `Постоянное хранилище: jdbc:postgresql://…`.
+
+### Своя инфраструктура (Docker Compose и т.п.)
+
+Можно задать JDBC-URL напрямую:
+```env
+DATABASE_URL=jdbc:postgresql://db:5432/scrumpoker
+DB_DRIVER=org.postgresql.Driver
+# при необходимости креды отдельно:
+# SPRING_DATASOURCE_USERNAME=...
+# SPRING_DATASOURCE_PASSWORD=...
+```
 
 ---
 
