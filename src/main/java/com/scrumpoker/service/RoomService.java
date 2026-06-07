@@ -176,6 +176,35 @@ public class RoomService {
         return deleted > 0 || ownsLiveRoom;
     }
 
+    /**
+     * Бэклог сессии пользователя для экспорта: список пар [Задача, Оценка].
+     * Источник — живая комната или снимок в БД (до TTL-очистки). Возвращает
+     * Optional.empty(), если сессия не найдена или не принадлежит пользователю.
+     */
+    public Optional<List<String[]>> exportOwnedSession(String roomId, String userId) {
+        Room room = rooms.get(roomId);
+        if (room != null) {
+            if (!userId.equals(room.getOwnerUserId())) return Optional.empty();
+            return Optional.of(room.getBacklog().stream()
+                    .map(i -> new String[]{i.getTitle(), i.getEstimate() == null ? "" : i.getEstimate()})
+                    .collect(java.util.stream.Collectors.toList()));
+        }
+        // Комната не в памяти — пробуем снимок в БД.
+        return roomRepository.findById(roomId).flatMap(json -> {
+            try {
+                RoomSnapshot snap = objectMapper.readValue(json, RoomSnapshot.class);
+                if (!userId.equals(snap.ownerUserId())) return Optional.empty();
+                List<String[]> rows = snap.backlog() == null ? List.of()
+                        : snap.backlog().stream()
+                            .map(b -> new String[]{b.title(), b.estimate() == null ? "" : b.estimate()})
+                            .collect(java.util.stream.Collectors.toList());
+                return Optional.of(rows);
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        });
+    }
+
     public void removeEmptyRoom(Room room) {
         rooms.remove(room.getId());
         roomRepository.delete(room.getId());

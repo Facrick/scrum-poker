@@ -107,6 +107,40 @@ public class AccountController {
                 : ResponseEntity.notFound().build();
     }
 
+    // ── GET /api/me/sessions/{roomId}/export — CSV бэклога ───────
+
+    @GetMapping("/sessions/{roomId}/export")
+    public ResponseEntity<byte[]> exportSession(
+            @AuthenticationPrincipal OAuth2User oauthUser,
+            @PathVariable String roomId) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        return roomService.exportOwnedSession(roomId, userId)
+                .map(rows -> {
+                    StringBuilder sb = new StringBuilder("﻿"); // BOM — чтобы Excel понял UTF-8
+                    sb.append("Задача,Оценка\r\n");
+                    for (String[] r : rows) {
+                        sb.append(csv(r[0])).append(',').append(csv(r[1])).append("\r\n");
+                    }
+                    byte[] body = sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    return ResponseEntity.ok()
+                            .header("Content-Type", "text/csv; charset=UTF-8")
+                            .header("Content-Disposition",
+                                    "attachment; filename=\"session-" + roomId + ".csv\"")
+                            .body(body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /** Экранирование значения для CSV (кавычки, запятые, переводы строк). */
+    private static String csv(String v) {
+        if (v == null) return "";
+        if (v.contains("\"") || v.contains(",") || v.contains("\n") || v.contains("\r")) {
+            return '"' + v.replace("\"", "\"\"") + '"';
+        }
+        return v;
+    }
+
     // ── POST /api/me/rooms — создать комнату из кабинета ─────────
 
     @PostMapping("/rooms")

@@ -180,6 +180,7 @@ function sessionCard(s) {
         <div class="sess-foot">
             <span class="sess-date">${fmtDate(s.lastActiveAt)}</span>
             <div class="sess-card-actions">
+                <button class="icon-btn" data-export title="Экспорт в CSV">⬇ CSV</button>
                 <button class="icon-btn" data-rename title="Переименовать">✎</button>
                 <button class="icon-btn icon-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>
                 ${s.alive
@@ -196,6 +197,7 @@ function sessionCard(s) {
             .catch(() => toast('Не удалось скопировать'));
     });
 
+    el.querySelector('[data-export]').addEventListener('click', () => exportSession(s));
     el.querySelector('[data-rename]').addEventListener('click', () => renameSession(s));
     el.querySelector('[data-delete]').addEventListener('click', () => deleteSession(s));
 
@@ -235,6 +237,24 @@ async function deleteSession(s) {
         toast('Удалено', true);
         forceReloadSessions();
     } catch { toast('Не удалось удалить'); }
+}
+
+async function exportSession(s) {
+    try {
+        const res = await spAuth.fetch('/api/me/sessions/' + encodeURIComponent(s.roomId) + '/export');
+        if (res.status === 404) { toast('Данные сессии больше недоступны для экспорта'); return; }
+        if (!res.ok) throw new Error();
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (s.roomName || s.roomId) + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast('CSV скачан', true);
+    } catch { toast('Не удалось экспортировать'); }
 }
 
 /** Принудительно перечитать список (сбросив кэш сравнения). */

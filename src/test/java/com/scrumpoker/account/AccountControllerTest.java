@@ -220,6 +220,43 @@ class AccountControllerTest {
         assertThat(res.getStatusCode().value()).isEqualTo(404);
     }
 
+    // ─── GET /api/me/sessions/{id}/export ─────────────────────────
+
+    @Test
+    @Severity(SeverityLevel.BLOCKER)
+    @DisplayName("GET /export → 401 без аутентификации")
+    void exportReturns401WhenNotAuthenticated() {
+        ResponseEntity<byte[]> res = controller.exportSession(null, "r1");
+        assertThat(res.getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("GET /export → CSV с BOM, заголовком и строками бэклога")
+    void exportReturnsCsvForOwner() {
+        when(roomService.exportOwnedSession("r1", "u")).thenReturn(Optional.of(List.of(
+                new String[]{"Логин", "5"},
+                new String[]{"Оплата, картой", "8"}   // запятая → должна экранироваться
+        )));
+        ResponseEntity<byte[]> res = controller.exportSession(oauthUser("u"), "r1");
+
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+        assertThat(res.getHeaders().getFirst("Content-Disposition")).contains("session-r1.csv");
+        String csv = new String(res.getBody(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("﻿");                 // BOM
+        assertThat(csv).contains("Задача,Оценка");
+        assertThat(csv).contains("Логин,5");
+        assertThat(csv).contains("\"Оплата, картой\",8");     // экранирование запятой
+    }
+
+    @Test
+    @DisplayName("GET /export → 404, если сессия не найдена/не его")
+    void exportReturns404WhenNotOwned() {
+        when(roomService.exportOwnedSession("r1", "u")).thenReturn(Optional.empty());
+        ResponseEntity<byte[]> res = controller.exportSession(oauthUser("u"), "r1");
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+    }
+
     // ─── POST /api/me/rooms ───────────────────────────────────────
 
     @Test

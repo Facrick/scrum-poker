@@ -38,6 +38,12 @@ public class RoomRepository {
         }
     }
 
+    /** Загрузить снимок одной комнаты (для экспорта завершённых сессий из ЛК). */
+    public java.util.Optional<String> findById(String roomId) {
+        return jdbc.query("SELECT snapshot FROM room_snapshots WHERE room_id = ?",
+                (rs, n) -> rs.getString("snapshot"), roomId).stream().findFirst();
+    }
+
     /** Загрузить все снимки (при старте сервера). */
     public List<String> findAll() {
         return jdbc.queryForList("SELECT snapshot FROM room_snapshots", String.class);
