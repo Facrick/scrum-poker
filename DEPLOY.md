@@ -92,6 +92,8 @@ docker compose up -d --build app
 | `GOOGLE_CLIENT_SECRET` | —                   | OAuth2 Google: Client Secret            |
 | `GITHUB_CLIENT_ID` | —                       | OAuth2 GitHub: Client ID                |
 | `GITHUB_CLIENT_SECRET` | —                   | OAuth2 GitHub: Client Secret            |
+| `JWT_SECRET`     | dev-ключ (небезопасно)    | Секрет подписи JWT ЛК, ≥ 32 байт — **обязателен в production** |
+| `JWT_TTL_HOURS`  | `168`                     | Срок жизни токена ЛК в часах (7 дней)   |
 
 ---
 

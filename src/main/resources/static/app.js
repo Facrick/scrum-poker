@@ -34,7 +34,7 @@ function switchLobbyTab(mode) {
     if (savedName) $("nameInput").value = savedName;
 
     // Тихая проверка авторизации — не блокирует лобби
-    fetch("/api/me").then(async r => {
+    spAuth.fetch("/api/me").then(async r => {
         if (!r.ok) return;
         const user = await r.json();
         if (!user?.id) return;

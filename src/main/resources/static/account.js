@@ -2,7 +2,7 @@
     // ── Загрузка профиля ──────────────────────────────────────────
     let user;
     try {
-        const res = await fetch('/api/me');
+        const res = await spAuth.fetch('/api/me');
         if (!res.ok || !res.url.includes('/api/me')) { location.href = '/login'; return; }
         user = await res.json();
         if (!user || !user.id) throw new Error('empty');
@@ -26,8 +26,9 @@
     `;
 
     // ── Выйти ─────────────────────────────────────────────────────
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await fetch('/api/me/logout', { method: 'POST' });
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        // Stateless: выход — это просто удаление токена на клиенте.
+        spAuth.clear();
         location.href = '/';
     });
 
@@ -37,7 +38,7 @@
         newSessionBtn.disabled = true;
         newSessionBtn.textContent = '…';
         try {
-            const res = await fetch('/api/me/rooms', {
+            const res = await spAuth.fetch('/api/me/rooms', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: 'Новая сессия', deck: 'FIBONACCI' })
@@ -56,7 +57,7 @@
 
     // ── Загрузка истории сессий ───────────────────────────────────
     try {
-        const res = await fetch('/api/me/sessions');
+        const res = await spAuth.fetch('/api/me/sessions');
         const sessions = res.ok ? await res.json() : [];
         renderSessions(sessions);
     } catch {
