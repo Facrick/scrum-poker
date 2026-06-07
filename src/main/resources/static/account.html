@@ -131,6 +131,9 @@
             padding: .12rem .4rem; transition: border-color .15s, color .15s;
         }
         .icon-btn:hover { border-color: var(--border-2); color: var(--text); }
+        .icon-btn.icon-danger:hover { border-color: var(--danger); color: var(--danger); }
+
+        .sess-card-actions { display: flex; align-items: center; gap: .4rem; }
 
         .sess-metrics { display: flex; gap: 1.25rem; }
         .metric-mini { display: flex; flex-direction: column; gap: .15rem; }
@@ -252,6 +255,6 @@
 <div id="toast" class="toast"></div>
 
 <script src="auth.js?v=1"></script>
-<script src="account.js?v=5"></script>
+<script src="account.js?v=6"></script>
 </body>
 </html>

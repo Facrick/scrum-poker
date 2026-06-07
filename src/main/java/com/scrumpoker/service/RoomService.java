@@ -146,6 +146,36 @@ public class RoomService {
         return persistFailures.get();
     }
 
+    /**
+     * Переименовать сессию, принадлежащую пользователю. Обновляет историю и,
+     * если комната ещё жива в памяти, её имя + снимок. Возвращает false, если
+     * сессия не найдена или не принадлежит пользователю.
+     */
+    public boolean renameOwnedSession(String roomId, String userId, String name) {
+        Room room = rooms.get(roomId);
+        boolean ownsLiveRoom = room != null && userId.equals(room.getOwnerUserId());
+        int updated = sessionHistoryRepository.updateName(roomId, userId, name);
+        if (ownsLiveRoom) {
+            room.setName(name);
+            persistRoom(room); // заодно синхронизирует room_name в истории
+        }
+        return updated > 0 || ownsLiveRoom;
+    }
+
+    /**
+     * Удалить сессию пользователя: убрать из истории и, если комната жива,
+     * завершить её (память + снимок в БД). Возвращает false, если удалять нечего.
+     */
+    public boolean deleteOwnedSession(String roomId, String userId) {
+        Room room = rooms.get(roomId);
+        boolean ownsLiveRoom = room != null && userId.equals(room.getOwnerUserId());
+        int deleted = sessionHistoryRepository.delete(roomId, userId);
+        if (ownsLiveRoom) {
+            removeEmptyRoom(room); // удаляет из памяти и БД; больше не будет broadcast'ов
+        }
+        return deleted > 0 || ownsLiveRoom;
+    }
+
     public void removeEmptyRoom(Room room) {
         rooms.remove(room.getId());
         roomRepository.delete(room.getId());

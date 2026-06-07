@@ -152,6 +152,74 @@ class AccountControllerTest {
         assertThat(res).isEmpty();
     }
 
+    // ─── PATCH /api/me/sessions/{id} ──────────────────────────────
+
+    @Test
+    @Severity(SeverityLevel.BLOCKER)
+    @DisplayName("PATCH /sessions → 401 без аутентификации")
+    void renameReturns401WhenNotAuthenticated() {
+        ResponseEntity<Void> res = controller.renameSession(null, "r1",
+                new AccountController.RenameSessionRequest("New"));
+        assertThat(res.getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("PATCH /sessions → 400 при пустом имени")
+    void renameReturns400OnEmptyName() {
+        ResponseEntity<Void> res = controller.renameSession(oauthUser("u"), "r1",
+                new AccountController.RenameSessionRequest("   "));
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        verify(roomService, never()).renameOwnedSession(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("PATCH /sessions → 204 и делегирует переименование владельцу")
+    void renameDelegatesToServiceScopedByOwner() {
+        when(roomService.renameOwnedSession("r1", "u", "New name")).thenReturn(true);
+        ResponseEntity<Void> res = controller.renameSession(oauthUser("u"), "r1",
+                new AccountController.RenameSessionRequest("  New name  "));
+        assertThat(res.getStatusCode().value()).isEqualTo(204);
+        verify(roomService).renameOwnedSession("r1", "u", "New name");
+    }
+
+    @Test
+    @DisplayName("PATCH /sessions → 404, если сессия не принадлежит пользователю")
+    void renameReturns404WhenNotOwned() {
+        when(roomService.renameOwnedSession("r1", "u", "X")).thenReturn(false);
+        ResponseEntity<Void> res = controller.renameSession(oauthUser("u"), "r1",
+                new AccountController.RenameSessionRequest("X"));
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+    }
+
+    // ─── DELETE /api/me/sessions/{id} ─────────────────────────────
+
+    @Test
+    @Severity(SeverityLevel.BLOCKER)
+    @DisplayName("DELETE /sessions → 401 без аутентификации")
+    void deleteReturns401WhenNotAuthenticated() {
+        ResponseEntity<Void> res = controller.deleteSession(null, "r1");
+        assertThat(res.getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("DELETE /sessions → 204 и делегирует удаление владельцу")
+    void deleteDelegatesToServiceScopedByOwner() {
+        when(roomService.deleteOwnedSession("r1", "u")).thenReturn(true);
+        ResponseEntity<Void> res = controller.deleteSession(oauthUser("u"), "r1");
+        assertThat(res.getStatusCode().value()).isEqualTo(204);
+        verify(roomService).deleteOwnedSession("r1", "u");
+    }
+
+    @Test
+    @DisplayName("DELETE /sessions → 404, если удалять нечего/не его")
+    void deleteReturns404WhenNothingDeleted() {
+        when(roomService.deleteOwnedSession("r1", "u")).thenReturn(false);
+        ResponseEntity<Void> res = controller.deleteSession(oauthUser("u"), "r1");
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+    }
+
     // ─── POST /api/me/rooms ───────────────────────────────────────
 
     @Test

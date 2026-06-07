@@ -42,6 +42,20 @@ public class SessionHistoryRepository {
         }
     }
 
+    /** Переименовать сессию владельца. Возвращает число обновлённых строк (0 — не его/нет). */
+    public int updateName(String roomId, String ownerUserId, String name) {
+        return jdbc.update(
+                "UPDATE session_history SET room_name = ? WHERE room_id = ? AND owner_user_id = ?",
+                name, roomId, ownerUserId);
+    }
+
+    /** Удалить сессию владельца из истории. Возвращает число удалённых строк. */
+    public int delete(String roomId, String ownerUserId) {
+        return jdbc.update(
+                "DELETE FROM session_history WHERE room_id = ? AND owner_user_id = ?",
+                roomId, ownerUserId);
+    }
+
     public List<SessionHistory> findByOwnerUserId(String userId) {
         return jdbc.query(
                 "SELECT room_id, owner_user_id, room_name, participant_count, task_count, " +

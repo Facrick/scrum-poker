@@ -179,9 +179,13 @@ function sessionCard(s) {
         </div>
         <div class="sess-foot">
             <span class="sess-date">${fmtDate(s.lastActiveAt)}</span>
-            ${s.alive
-                ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти →</a>`
-                : ''}
+            <div class="sess-card-actions">
+                <button class="icon-btn" data-rename title="Переименовать">✎</button>
+                <button class="icon-btn icon-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>
+                ${s.alive
+                    ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти →</a>`
+                    : ''}
+            </div>
         </div>
     `;
 
@@ -192,10 +196,52 @@ function sessionCard(s) {
             .catch(() => toast('Не удалось скопировать'));
     });
 
+    el.querySelector('[data-rename]').addEventListener('click', () => renameSession(s));
+    el.querySelector('[data-delete]').addEventListener('click', () => deleteSession(s));
+
     return el;
 }
 
 function currentUser() { return _user || { displayName: 'Модератор' }; }
+
+async function renameSession(s) {
+    const name = prompt('Новое название сессии:', s.roomName || '');
+    if (name == null) return;                 // отмена
+    const trimmed = name.trim();
+    if (!trimmed) { toast('Название не может быть пустым'); return; }
+    if (trimmed === s.roomName) return;
+    try {
+        const res = await spAuth.fetch('/api/me/sessions/' + encodeURIComponent(s.roomId), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: trimmed })
+        });
+        if (!res.ok) throw new Error();
+        toast('Переименовано', true);
+        forceReloadSessions();
+    } catch { toast('Не удалось переименовать'); }
+}
+
+async function deleteSession(s) {
+    const msg = s.alive
+        ? `Завершить и удалить сессию «${s.roomName || s.roomId}»? Активные участники потеряют доступ.`
+        : `Удалить сессию «${s.roomName || s.roomId}» из истории?`;
+    if (!confirm(msg)) return;
+    try {
+        const res = await spAuth.fetch('/api/me/sessions/' + encodeURIComponent(s.roomId), {
+            method: 'DELETE'
+        });
+        if (!res.ok) throw new Error();
+        toast('Удалено', true);
+        forceReloadSessions();
+    } catch { toast('Не удалось удалить'); }
+}
+
+/** Принудительно перечитать список (сбросив кэш сравнения). */
+function forceReloadSessions() {
+    lastSessionsJson = null;
+    loadSessions();
+}
 
 function fmtDate(iso) {
     if (!iso) return '—';

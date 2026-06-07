@@ -48,6 +48,7 @@ public class AccountController {
     ) {}
 
     record CreateRoomRequest(String name, String deck) {}
+    record RenameSessionRequest(String name) {}
 
     // ── GET /api/me ───────────────────────────────────────────────
 
@@ -74,6 +75,36 @@ public class AccountController {
                         s.startedAt().toString(), s.lastActiveAt().toString(),
                         roomService.getRoom(s.roomId()).isPresent()))
                 .toList();
+    }
+
+    // ── PATCH /api/me/sessions/{roomId} — переименовать ──────────
+
+    @PatchMapping("/sessions/{roomId}")
+    public ResponseEntity<Void> renameSession(
+            @AuthenticationPrincipal OAuth2User oauthUser,
+            @PathVariable String roomId,
+            @RequestBody(required = false) RenameSessionRequest req) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        String name = (req != null && req.name() != null) ? req.name().strip() : "";
+        if (name.isEmpty()) return ResponseEntity.badRequest().build();
+        if (name.length() > 80) name = name.substring(0, 80);
+        return roomService.renameOwnedSession(roomId, userId, name)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
+
+    // ── DELETE /api/me/sessions/{roomId} — завершить и удалить ────
+
+    @DeleteMapping("/sessions/{roomId}")
+    public ResponseEntity<Void> deleteSession(
+            @AuthenticationPrincipal OAuth2User oauthUser,
+            @PathVariable String roomId) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        return roomService.deleteOwnedSession(roomId, userId)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 
     // ── POST /api/me/rooms — создать комнату из кабинета ─────────
