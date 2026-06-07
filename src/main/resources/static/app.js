@@ -149,9 +149,11 @@ function connectAndJoin(name, role) {
             stompClient.subscribe("/topic/room/" + roomId, (m) => render(JSON.parse(m.body)));
             // При реконнекте передаём сохранённый participantId для восстановления сессии
             const existingId = localStorage.getItem("sp_pid") || "";
+            // token — JWT владельца ЛК (если вошёл): сервер сделает его ведущим в своей комнате.
+            const token = (window.spAuth && spAuth.token()) || "";
             stompClient.publish({
                 destination: "/app/room/" + roomId + "/join",
-                body: JSON.stringify({ name, role, existingId })
+                body: JSON.stringify({ name, role, existingId, token })
             });
         },
         onWebSocketClose: () => setConn(false),

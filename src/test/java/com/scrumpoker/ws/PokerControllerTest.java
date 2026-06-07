@@ -35,13 +35,16 @@ class PokerControllerTest {
 
     private RoomService roomService;
     private PokerController controller;
+    private com.scrumpoker.config.JwtService jwtService;
     private Room room;
 
     @BeforeEach
     void setUp() {
         roomService = new RoomService(new ObjectMapper(), mock(RoomRepository.class),
                 mock(SessionHistoryRepository.class), new RateLimiter());
-        controller = new PokerController(roomService, mock(SimpMessagingTemplate.class), new RateLimiter());
+        jwtService = new com.scrumpoker.config.JwtService("test-secret-test-secret-test-secret-123", 24);
+        controller = new PokerController(roomService, mock(SimpMessagingTemplate.class),
+                new RateLimiter(), jwtService);
         room = roomService.createRoom("Sprint", Deck.FIBONACCI);
     }
 
@@ -52,8 +55,12 @@ class PokerControllerTest {
     }
 
     private String join(String name, String role, String existingId, String sessionId) {
+        return join(name, role, existingId, sessionId, null);
+    }
+
+    private String join(String name, String role, String existingId, String sessionId, String token) {
         Map<String, String> reply = controller.join(
-                room.getId(), new Messages.JoinMessage(name, role, existingId), session(sessionId));
+                room.getId(), new Messages.JoinMessage(name, role, existingId, token), session(sessionId));
         return reply.get("participantId");
     }
 
@@ -156,6 +163,32 @@ class PokerControllerTest {
         assertThat(room.size()).isEqualTo(n);
         List<String> ids = room.getParticipants().stream().map(Participant::getId).toList();
         assertThat(ids).doesNotHaveDuplicates();
+    }
+
+    // ---- Owner-promote (JWT владельца) ----
+
+    @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("Владелец комнаты с валидным JWT входит ведущим, даже зайдя не первым")
+    void ownerBecomesModeratorViaToken() {
+        Room owned = roomService.createRoom("Owned", Deck.FIBONACCI, "owner-1");
+        controller.join(owned.getId(), new Messages.JoinMessage("Bob", "PLAYER", null, null), session("s1"));
+        String token = jwtService.issue("owner-1");
+        Map<String, String> reply = controller.join(
+                owned.getId(), new Messages.JoinMessage("Alice", "PLAYER", null, token), session("s2"));
+        assertThat(reply.get("role")).isEqualTo("MODERATOR");
+    }
+
+    @Test
+    @Severity(SeverityLevel.BLOCKER)
+    @DisplayName("Токен НЕ владельца не даёт роль ведущего")
+    void nonOwnerTokenDoesNotPromote() {
+        Room owned = roomService.createRoom("Owned", Deck.FIBONACCI, "owner-1");
+        controller.join(owned.getId(), new Messages.JoinMessage("Bob", "PLAYER", null, null), session("s1"));
+        String foreign = jwtService.issue("someone-else");
+        Map<String, String> reply = controller.join(
+                owned.getId(), new Messages.JoinMessage("Eve", "PLAYER", null, foreign), session("s2"));
+        assertThat(reply.get("role")).isEqualTo("PLAYER");
     }
 
     // ---- Прогресс по бэклогу ----

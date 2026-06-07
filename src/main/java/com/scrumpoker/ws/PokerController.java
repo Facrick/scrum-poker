@@ -28,14 +28,24 @@ public class PokerController {
     private final RoomService roomService;
     private final SimpMessagingTemplate messaging;
     private final RateLimiter rateLimiter;
+    private final com.scrumpoker.config.JwtService jwtService;
 
     // sessionId -> (roomId, participantId) для авторизации и обработки отключений.
     private final Map<String, String[]> sessions = new ConcurrentHashMap<>();
 
-    public PokerController(RoomService roomService, SimpMessagingTemplate messaging, RateLimiter rateLimiter) {
+    public PokerController(RoomService roomService, SimpMessagingTemplate messaging,
+                          RateLimiter rateLimiter, com.scrumpoker.config.JwtService jwtService) {
         this.roomService = roomService;
         this.messaging = messaging;
         this.rateLimiter = rateLimiter;
+        this.jwtService = jwtService;
+    }
+
+    /** true, если в join передан валидный JWT владельца ЭТОЙ комнаты. */
+    private boolean isOwner(Room room, Messages.JoinMessage msg) {
+        if (msg.token() == null || msg.token().isBlank() || room.getOwnerUserId() == null) return false;
+        String userId = jwtService.parseUserId(msg.token());
+        return userId != null && userId.equals(room.getOwnerUserId());
     }
 
     @MessageMapping("/room/{roomId}/join")
@@ -56,11 +66,14 @@ public class PokerController {
 
         // Вся логика find-or-create синхронизирована по комнате, чтобы два
         // одновременных join'а не создали дубль и не получили один participantId.
+        boolean owner = isOwner(room, msg);
+
         synchronized (room) {
             // 1. Реконнект по сохранённому participantId.
             if (msg.existingId() != null && !msg.existingId().isBlank()) {
                 Participant existing = room.getParticipant(msg.existingId());
                 if (existing != null) {
+                    if (owner) existing.setRole(Participant.Role.MODERATOR); // владелец всегда ведущий
                     bindSession(sessionId, room, existing);
                     broadcast(room);
                     return Map.of("participantId", existing.getId(), "role", existing.getRole().name());
@@ -72,6 +85,7 @@ public class PokerController {
                     .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
                     .findFirst().orElse(null);
             if (byName != null) {
+                if (owner) byName.setRole(Participant.Role.MODERATOR);
                 bindSession(sessionId, room, byName);
                 broadcast(room);
                 return Map.of("participantId", byName.getId(), "role", byName.getRole().name());
@@ -84,7 +98,7 @@ public class PokerController {
                     .toList()
                     .forEach(room::removeParticipant);
 
-            Participant.Role role = parseRole(msg.role());
+            Participant.Role role = owner ? Participant.Role.MODERATOR : parseRole(msg.role());
             Participant p;
             try {
                 p = roomService.join(room, cleanName, role);
