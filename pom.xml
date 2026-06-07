@@ -21,6 +21,8 @@
         <java.version>17</java.version>
         <allure.version>2.27.0</allure.version>
         <aspectj.version>1.9.21</aspectj.version>
+        <!-- Метка сборки → версия статических ассетов (?v=...), см. maven-antrun-plugin -->
+        <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
     </properties>
 
     <dependencies>
@@ -107,6 +109,32 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!--
+              Авто-версионирование статических ассетов (#9): после копирования
+              ресурсов переписываем ?v=... у локальных .js/.css на метку сборки.
+              Регулярка трогает только href/src ассетов — инлайн-CSS (@keyframes,
+              @media) не затрагивается. Избавляет от ручных бампов ?v=N навсегда.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>asset-versioning</id>
+                        <phase>process-classes</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <replaceregexp flags="g" byline="true"
+                                    match="(href|src)=&quot;([^&quot;:]+\.(?:js|css))(\?v=[^&quot;]*)?&quot;"
+                                    replace="\1=&quot;\2?v=${maven.build.timestamp}&quot;">
+                                    <fileset dir="${project.build.outputDirectory}/static" includes="**/*.html"/>
+                                </replaceregexp>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <!-- Surefire: пишем результаты в формате Allure + AspectJ для @Step/@Attachment -->
             <plugin>
