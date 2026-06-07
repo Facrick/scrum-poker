@@ -47,7 +47,9 @@
             const { roomId } = await res.json();
             // Сохраняем имя, чтобы лобби подхватило → сразу войдём
             localStorage.setItem('sp_name', user.displayName || 'Модератор');
-            location.href = '/?room=' + encodeURIComponent(roomId);
+            // host=1 — лобби сразу подключит создателя в комнату (он станет
+            // модератором как первый вошедший), минуя экран "Войти в комнату".
+            location.href = '/?room=' + encodeURIComponent(roomId) + '&host=1';
         } catch {
             newSessionBtn.disabled = false;
             newSessionBtn.textContent = '+ Новая сессия';

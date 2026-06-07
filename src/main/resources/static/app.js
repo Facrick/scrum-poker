@@ -6,6 +6,8 @@ const $ = (id) => document.getElementById(id);
 let stompClient = null;
 let moderatorUser = null; // профиль, если пользователь залогинен
 let roomId = new URLSearchParams(location.search).get("room");
+// host=1 ставит ЛК при создании комнаты: создатель должен сразу войти в неё.
+const hostMode = new URLSearchParams(location.search).get("host") === "1";
 let myId = null;
 let myRole = null;
 let currentState = null;
@@ -51,6 +53,14 @@ function switchLobbyTab(mode) {
             `<a href="/account">Кабинет</a>`;
         $("lobbyModBadge").classList.remove("hidden");
     }).catch(() => {});
+
+    // Создание из ЛК (host=1): сразу входим в свежую комнату как модератор,
+    // не показывая экран входа. Имя берём из профиля (сохранено в sp_name).
+    if (hostMode && roomId && savedName) {
+        history.replaceState(null, "", "?room=" + roomId); // убираем host из URL
+        connectAndJoin(savedName, "PLAYER");               // сервер сделает первого вошедшего MODERATOR
+        return;
+    }
 
     // Автовосстановление сессии при обновлении страницы (F5)
     const savedPid  = localStorage.getItem("sp_pid");
@@ -484,7 +494,9 @@ function renderResults(state) {
     const revoteBtn = $("revoteBtn");
     if (revoteBtn) revoteBtn.addEventListener("click", () => send("reset", { participantId: myId }));
     const resetBtn2 = $("consensusResetBtn");
-    if (resetBtn2) resetBtn2.addEventListener("click", () => send("reset", { participantId: myId }));
+    // «Новый раунд» после фиксации оценки — переходим к следующей задаче бэклога
+    // (сервер сам откатится к reset, если незаоценённых задач больше нет).
+    if (resetBtn2) resetBtn2.addEventListener("click", () => send("next", { participantId: myId }));
 }
 
 // ---------- Прогресс голосования ----------

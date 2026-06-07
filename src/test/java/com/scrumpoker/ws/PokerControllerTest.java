@@ -158,6 +158,47 @@ class PokerControllerTest {
         assertThat(ids).doesNotHaveDuplicates();
     }
 
+    // ---- Прогресс по бэклогу ----
+
+    @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("Новый раунд по бэклогу переходит к следующей незаоценённой задаче")
+    void nextItemAdvancesToNextUnestimated() {
+        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
+        controller.addBacklogItem(room.getId(), new Messages.AddBacklogItemMessage(alice, "T1"), session("s1"));
+        controller.addBacklogItem(room.getId(), new Messages.AddBacklogItemMessage(alice, "T2"), session("s1"));
+        String id1 = room.getBacklog().get(0).getId();
+        String id2 = room.getBacklog().get(1).getId();
+
+        // Активируем и оцениваем первую задачу.
+        controller.activateBacklogItem(room.getId(), new Messages.ActivateBacklogItemMessage(alice, id1), session("s1"));
+        controller.vote(room.getId(), new Messages.VoteMessage(alice, "5"), session("s1"));
+        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+        controller.setFinalEstimate(room.getId(), new Messages.SetFinalEstimateMessage(alice, "5"), session("s1"));
+        assertThat(room.getBacklog().get(0).getEstimate()).isEqualTo("5");
+
+        // «Новый раунд» → переход ко второй (незаоценённой) задаче, раунд сброшен.
+        controller.nextItem(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+        assertThat(room.getActiveItemId()).isEqualTo(id2);
+        assertThat(room.getCurrentStory()).isEqualTo("T2");
+        assertThat(room.isRevealed()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Новый раунд без незаоценённых задач просто сбрасывает раунд")
+    void nextItemFallsBackToResetWhenAllEstimated() {
+        String alice = join("Alice", "PLAYER", null, "s1");
+        controller.addBacklogItem(room.getId(), new Messages.AddBacklogItemMessage(alice, "T1"), session("s1"));
+        String id1 = room.getBacklog().get(0).getId();
+        controller.activateBacklogItem(room.getId(), new Messages.ActivateBacklogItemMessage(alice, id1), session("s1"));
+        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+        controller.setFinalEstimate(room.getId(), new Messages.SetFinalEstimateMessage(alice, "5"), session("s1"));
+
+        controller.nextItem(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+        assertThat(room.getActiveItemId()).as("активной остаётся текущая задача").isEqualTo(id1);
+        assertThat(room.isRevealed()).as("раунд сброшен").isFalse();
+    }
+
     @Test
     @DisplayName("Модератор может исключить участника")
     void kickRemovesParticipant() {

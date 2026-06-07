@@ -128,6 +128,28 @@ public class PokerController {
         broadcast(room);
     }
 
+    /**
+     * Новый раунд по бэклогу: переходит к следующей незаоценённой задаче.
+     * Если незаоценённых задач не осталось (или бэклог пуст) — просто
+     * сбрасывает раунд для текущей задачи (поведение как у reset).
+     */
+    @MessageMapping("/room/{roomId}/next")
+    public void nextItem(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
+                         SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
+        BacklogItem next = room.getBacklog().stream()
+                .filter(i -> i.getEstimate() == null)
+                .findFirst()
+                .orElse(null);
+        if (next != null) {
+            room.setActiveItemId(next.getId());
+            room.setCurrentStory(next.getTitle());
+        }
+        room.resetRound();
+        broadcast(room);
+    }
+
     @MessageMapping("/room/{roomId}/story")
     public void setStory(@DestinationVariable String roomId, @Payload Messages.SetStoryMessage msg,
                          SimpMessageHeaderAccessor headers) {
