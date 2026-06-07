@@ -129,7 +129,7 @@ function switchToCreateMode(errorMsg) {
 // ---------- WebSocket ----------
 function connectAndJoin(name, role) {
     stompClient = new StompJs.Client({
-        webSocketFactory: () => new SockJS("/ws"),
+        brokerURL: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
         reconnectDelay: 3000,
         onConnect: () => {
             setConn(true);
