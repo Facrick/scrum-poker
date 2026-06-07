@@ -30,7 +30,9 @@ public record RoomSnapshot(
 ) {
 
     public record ParticipantSnap(String id, String name, String role, String vote) {}
-    public record BacklogSnap(String id, String title, String estimate) {}
+    public record BacklogSnap(String id, String title, String estimate,
+                              int revotes, List<VoteSnap> votes) {}
+    public record VoteSnap(String name, String value) {}
 
     /** Создать снимок из доменного объекта Room. */
     public static RoomSnapshot from(Room room) {
@@ -39,7 +41,11 @@ public record RoomSnapshot(
                 .collect(Collectors.toList());
 
         List<BacklogSnap> bl = room.getBacklog().stream()
-                .map(i -> new BacklogSnap(i.getId(), i.getTitle(), i.getEstimate()))
+                .map(i -> new BacklogSnap(i.getId(), i.getTitle(), i.getEstimate(),
+                        i.getRevotes(),
+                        i.getVotes().stream()
+                                .map(v -> new VoteSnap(v.name(), v.value()))
+                                .collect(Collectors.toList())))
                 .collect(Collectors.toList());
 
         return new RoomSnapshot(
@@ -89,6 +95,12 @@ public record RoomSnapshot(
             for (BacklogSnap bs : backlog) {
                 BacklogItem item = new BacklogItem(bs.id(), bs.title());
                 item.setEstimate(bs.estimate());
+                item.setRevotes(bs.revotes()); // 0 для старых снимков
+                if (bs.votes() != null) {
+                    item.setVotes(bs.votes().stream()
+                            .map(v -> new BacklogItem.RoundVote(v.name(), v.value()))
+                            .collect(Collectors.toList()));
+                }
                 room.getBacklog().add(item);
             }
         }

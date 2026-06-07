@@ -554,6 +554,32 @@ function renderBacklog(state) {
 
         el.append(dot, titleEl, estEl);
 
+        // История раунда (#6): значок переголосований + раскрытие голосов.
+        const hasHistory = isDone && ((item.votes && item.votes.length) || item.revotes > 0);
+        let details = null;
+        if (hasHistory) {
+            if (item.revotes > 0) {
+                const rev = document.createElement("span");
+                rev.className = "backlog-revotes";
+                rev.title = "Переголосований: " + item.revotes;
+                rev.textContent = "↻" + item.revotes;
+                el.appendChild(rev);
+            }
+            const info = document.createElement("button");
+            info.className = "backlog-info";
+            info.title = "Как голосовали";
+            info.textContent = "ⓘ";
+            el.appendChild(info);
+
+            details = document.createElement("div");
+            details.className = "backlog-votes hidden";
+            details.innerHTML = (item.votes || [])
+                .map(v => `<span class="backlog-vote-chip">${escapeHtml(v.name)}<b>${escapeHtml(v.value)}</b></span>`)
+                .join("") || '<span class="backlog-votes-empty">нет голосов</span>';
+
+            info.onclick = (e) => { e.stopPropagation(); details.classList.toggle("hidden"); };
+        }
+
         if (myRole === "MODERATOR") {
             el.title = isActive ? "Текущая задача" : "Активировать";
             el.style.cursor = isActive ? "default" : "pointer";
@@ -571,6 +597,7 @@ function renderBacklog(state) {
             el.appendChild(rm);
         }
         list.appendChild(el);
+        if (details) list.appendChild(details);
     });
 }
 

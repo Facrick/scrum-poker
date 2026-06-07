@@ -138,6 +138,14 @@ public class PokerController {
                       SimpMessageHeaderAccessor headers) {
         Room room = requireModerator(roomId, headers);
         if (room == null) return;
+        // Если переоткрываем уже вскрытый раунд по ещё не оценённой задаче —
+        // это переголосование: фиксируем его в истории задачи (#6).
+        if (room.isRevealed() && room.getActiveItemId() != null) {
+            room.getBacklog().stream()
+                    .filter(i -> i.getId().equals(room.getActiveItemId()) && i.getEstimate() == null)
+                    .findFirst()
+                    .ifPresent(BacklogItem::incrementRevotes);
+        }
         room.resetRound();
         broadcast(room);
     }
@@ -225,10 +233,16 @@ public class PokerController {
         final String est = (rawEst != null && rawEst.length() > 16) ? rawEst.substring(0, 16) : rawEst;
         room.setFinalEstimate(est);
         if (est != null && room.getActiveItemId() != null) {
+            // Снимок голосов на момент фиксации — для истории раунда (#6).
+            java.util.List<BacklogItem.RoundVote> snapshot = room.getParticipants().stream()
+                    .filter(p -> p.getRole() != Participant.Role.OBSERVER && p.getVote() != null)
+                    .map(p -> new BacklogItem.RoundVote(p.getName(), p.getVote()))
+                    .sorted(java.util.Comparator.comparing(BacklogItem.RoundVote::name, String.CASE_INSENSITIVE_ORDER))
+                    .toList();
             room.getBacklog().stream()
                     .filter(i -> i.getId().equals(room.getActiveItemId()))
                     .findFirst()
-                    .ifPresent(i -> i.setEstimate(est));
+                    .ifPresent(i -> { i.setEstimate(est); i.setVotes(snapshot); });
         }
         broadcast(room);
     }

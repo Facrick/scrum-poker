@@ -191,6 +191,35 @@ class PokerControllerTest {
         assertThat(reply.get("role")).isEqualTo("PLAYER");
     }
 
+    // ---- История раунда (#6) ----
+
+    @Test
+    @Severity(SeverityLevel.NORMAL)
+    @DisplayName("Фиксация оценки сохраняет голоса, reset после вскрытия считает переголосование")
+    void roundHistoryCapturesVotesAndRevotes() {
+        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
+        String bob = join("Bob", "PLAYER", null, "s2");
+        controller.setStory(room.getId(), new Messages.SetStoryMessage(alice, "Логин"), session("s1"));
+
+        // Раунд 1: голоса расходятся → вскрыть → переголосовать (reset).
+        controller.vote(room.getId(), new Messages.VoteMessage(alice, "3"), session("s1"));
+        controller.vote(room.getId(), new Messages.VoteMessage(bob, "8"), session("s2"));
+        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+        controller.reset(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+
+        // Раунд 2: консенсус → вскрыть → зафиксировать.
+        controller.vote(room.getId(), new Messages.VoteMessage(alice, "5"), session("s1"));
+        controller.vote(room.getId(), new Messages.VoteMessage(bob, "5"), session("s2"));
+        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
+        controller.setFinalEstimate(room.getId(),
+                new Messages.SetFinalEstimateMessage(alice, "5"), session("s1"));
+
+        var item = room.getBacklog().get(0);
+        assertThat(item.getRevotes()).isEqualTo(1);
+        assertThat(item.getVotes()).extracting("value").containsExactlyInAnyOrder("5", "5");
+        assertThat(item.getVotes()).extracting("name").contains("Alice", "Bob");
+    }
+
     // ---- Импорт бэклога списком ----
 
     @Test
