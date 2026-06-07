@@ -11,8 +11,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import com.scrumpoker.model.Deck;
+import com.scrumpoker.model.Room;
+import com.scrumpoker.service.RoomService;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +42,9 @@ class PokerFlowE2ETest {
 
     @LocalServerPort
     int port;
+
+    @Autowired
+    RoomService roomService;
 
     static Playwright playwright;
     static Browser browser;
@@ -93,5 +102,26 @@ class PokerFlowE2ETest {
 
         modCtx.close();
         playerCtx.close();
+    }
+
+    @Test
+    @DisplayName("Задачи, заданные при создании, видны в комнате после входа")
+    void preloadedBacklogVisibleInRoom() {
+        Room room = roomService.createRoom("E2E Бэклог", Deck.FIBONACCI, null,
+                List.of("Авторизация", "Корзина", "Оплата"));
+        String url = "http://localhost:" + port + "/?room=" + room.getId();
+
+        BrowserContext ctx = browser.newContext();
+        Page page = ctx.newPage();
+        page.navigate(url);
+        page.fill("#nameInput", "Боб");
+        page.click("#primaryBtn");
+        page.waitForSelector("#room:not(.hidden)");
+        page.waitForSelector(".backlog-item-title");
+
+        String backlog = page.locator("#backlogList").textContent();
+        assertThat(backlog).contains("Авторизация").contains("Корзина").contains("Оплата");
+
+        ctx.close();
     }
 }
