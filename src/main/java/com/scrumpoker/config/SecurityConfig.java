@@ -65,13 +65,44 @@ public class SecurityConfig {
                     res.setContentType("text/html;charset=UTF-8");
                     res.setHeader("Cache-Control", "no-store");
                     res.getWriter().write("""
-                        <!doctype html><html><head><title>Входим...</title></head><body>
-                        <script>
+                        <!doctype html><html><head><title>Входим...</title>
+                        <style>
+                          body{background:#0d1117;color:#e6edf3;font-family:sans-serif;
+                               display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+                          .box{text-align:center;padding:2rem}
+                          #status{font-size:1.1rem;margin-bottom:1.5rem}
+                          button{background:#2f81f7;color:#fff;border:none;border-radius:8px;
+                                 padding:.7rem 1.6rem;font-size:1rem;cursor:pointer}
+                          button:disabled{opacity:.4;cursor:not-allowed}
+                          .err{color:#f85149}
+                        </style>
+                        </head><body><div class="box">
+                        <p id="status">⏳ Устанавливаем сессию…</p>
+                        <button id="btn" disabled>Перейти в кабинет</button>
+                        <p id="debug" style="font-size:.75rem;color:#8b949e;margin-top:1rem"></p>
+                        </div><script>
                         document.cookie = 'JSESSIONID=%s; path=/; SameSite=Lax';
-                        location.replace('/account');
-                        </script>
-                        </body></html>
-                        """.formatted(sid));
+                        fetch('/api/me', {credentials:'include'}).then(async r => {
+                          const txt = await r.text();
+                          if (r.ok) {
+                            document.getElementById('status').textContent = '✓ Авторизован!';
+                            const btn = document.getElementById('btn');
+                            btn.disabled = false;
+                            btn.onclick = () => location.replace('/account');
+                            // Авто-переход через 2 сек
+                            setTimeout(() => location.replace('/account'), 2000);
+                          } else {
+                            document.getElementById('status').innerHTML =
+                              '<span class=\\"err\\">✗ Ошибка сессии (' + r.status + ')</span>';
+                            document.getElementById('debug').textContent =
+                              'sid=%s | resp=' + txt.substring(0, 80);
+                          }
+                        }).catch(e => {
+                          document.getElementById('status').innerHTML =
+                            '<span class=\\"err\\">Ошибка сети: ' + e + '</span>';
+                        });
+                        </script></body></html>
+                        """.formatted(sid, sid));
                 })
                 .failureUrl("/login?error=true")
             )
