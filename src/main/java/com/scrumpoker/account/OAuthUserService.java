@@ -24,14 +24,20 @@ public class OAuthUserService extends DefaultOAuth2UserService {
     @Override
     public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
         OAuth2User raw = super.loadUser(request);
-        String provider = request.getClientRegistration().getRegistrationId();
+        return processUser(request.getClientRegistration().getRegistrationId(), raw);
+    }
 
-        String providerId, email, displayName, avatarUrl;
-        String nameAttributeKey;
+    /**
+     * Маппинг атрибутов провайдера → User + обогащённый OAuth2User.
+     * Метод пакетной видимости специально для модульных тестов —
+     * позволяет тестировать бизнес-логику без HTTP-вызова к провайдеру.
+     */
+    OAuth2User processUser(String provider, OAuth2User raw) {
+        String providerId, email, displayName, avatarUrl, nameAttributeKey;
 
         if ("github".equals(provider)) {
-            // GitHub возвращает числовой id и опциональный email (может быть приватным)
-            providerId = String.valueOf(raw.getAttribute("id"));
+            // GitHub: числовой id, опциональный email (может быть приватным)
+            providerId = String.valueOf((Object) raw.getAttribute("id"));
             email = raw.getAttribute("email");
             String name = raw.getAttribute("name");
             displayName = (name != null && !name.isBlank()) ? name : raw.getAttribute("login");
@@ -48,7 +54,6 @@ public class OAuthUserService extends DefaultOAuth2UserService {
 
         User user = userRepository.upsert(provider, providerId, email, displayName, avatarUrl);
 
-        // Добавляем внутренний userId к атрибутам, чтобы контроллер мог его прочитать
         Map<String, Object> attrs = new HashMap<>(raw.getAttributes());
         attrs.put("_userId", user.id());
 
