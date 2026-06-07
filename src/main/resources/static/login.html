@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Войти — Scrum Poker</title>
+    <script>(function(){try{var t=localStorage.getItem('sp_theme');if(!t)t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=dev">
@@ -72,6 +73,7 @@
 </head>
 <body>
 <main class="lobby">
+    <button class="theme-toggle theme-toggle-fixed" type="button">☀️</button>
     <div class="lobby-card login-card">
         <div class="lobby-wordmark">
             <span class="lobby-suit">♠</span>
@@ -102,6 +104,7 @@
         <a class="login-back" href="/">← Обратно к игре</a>
     </div>
 </main>
+<script src="theme.js?v=dev"></script>
 <script>
     if (new URLSearchParams(location.search).has('error')) {
         document.getElementById('loginError').style.display = 'block';

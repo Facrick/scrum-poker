@@ -6,6 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>(function(){try{var t=localStorage.getItem('sp_theme');if(!t)t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <link rel="stylesheet" href="style.css?v=dev">
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -14,6 +15,7 @@
 
 <!-- ===== Лобби ===== -->
 <main id="lobby" class="lobby">
+    <button class="theme-toggle theme-toggle-fixed" type="button">☀️</button>
     <div class="lobby-card">
 
         <!-- Wordmark -->
@@ -100,6 +102,7 @@
             <span id="connDot" class="conn-dot" title="Соединение"></span>
             <button id="toggleBacklogBtn" class="btn btn-ghost btn-sm">Бэклог</button>
             <button id="copyLinkBtn"      class="btn btn-ghost btn-sm"><span class="link-text">Пригласить</span></button>
+            <button class="theme-toggle" type="button">☀️</button>
         </div>
     </header>
 
@@ -165,6 +168,7 @@
 
 <div id="toast" class="toast"></div>
 
+<script src="theme.js?v=dev"></script>
 <script src="auth.js?v=dev"></script>
 <script src="app.js?v=dev"></script>
 </body>

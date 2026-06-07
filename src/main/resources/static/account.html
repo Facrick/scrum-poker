@@ -6,6 +6,7 @@
     <title>Кабинет модератора — Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>(function(){try{var t=localStorage.getItem('sp_theme');if(!t)t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <link rel="stylesheet" href="style.css?v=dev">
     <style>
         body { background: var(--bg); }
@@ -243,6 +244,7 @@
             <span class="suit">♠</span> Scrum Poker
         </a>
         <div class="acc-actions">
+            <button class="theme-toggle" type="button">☀️</button>
             <button class="btn-new-session" id="newSessionBtn">+ Новая сессия</button>
             <button class="btn-logout" id="logoutBtn">Выйти</button>
         </div>
@@ -311,6 +313,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="theme.js?v=dev"></script>
 <script src="auth.js?v=dev"></script>
 <script src="account.js?v=dev"></script>
 </body>
