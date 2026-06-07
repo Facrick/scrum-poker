@@ -102,6 +102,13 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- E2E: Playwright for Java (без Node-тулчейна) -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.44.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -147,6 +154,9 @@
                     <systemPropertyVariables>
                         <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
                     </systemPropertyVariables>
+                    <!-- E2E (Playwright) требуют браузера — по умолчанию исключены.
+                         Запуск: mvn -Pe2e test -->
+                    <excludedGroups>e2e</excludedGroups>
                 </configuration>
                 <dependencies>
                     <dependency>
@@ -190,4 +200,22 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- E2E-прогон: mvn -Pe2e test (поднимает приложение и гоняет Playwright) -->
+        <profile>
+            <id>e2e</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration combine.self="override">
+                            <groups>e2e</groups>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
