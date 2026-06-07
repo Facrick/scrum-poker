@@ -40,16 +40,43 @@ let _user = null; // профиль, нужен кнопке «Новая сес
         btn.addEventListener('click', () => createSession(btn, user));
     });
 
-    // ── Загрузка истории сессий ───────────────────────────────────
+    // ── История сессий + live-обновление опросом ──────────────────
+    await loadSessions();
+    startSessionPolling();
+})();
+
+// Интервал опроса (мс). Обновляем «Активна сейчас», число участников и
+// прогресс задач без перезагрузки страницы.
+const POLL_INTERVAL = 10_000;
+let pollTimer = null;
+let lastSessionsJson = null;
+
+async function loadSessions() {
+    let sessions;
     try {
         const res = await spAuth.fetch('/api/me/sessions');
-        const sessions = res.ok ? await res.json() : [];
-        renderSummary(sessions);
-        renderSessions(sessions);
+        sessions = res.ok ? await res.json() : [];
     } catch {
-        renderSessions([]);
+        sessions = [];
     }
-})();
+    // Пропускаем перерисовку, если ничего не изменилось — без мерцания.
+    const json = JSON.stringify(sessions);
+    if (json === lastSessionsJson) return;
+    lastSessionsJson = json;
+    renderSummary(sessions);
+    renderSessions(sessions);
+}
+
+function startSessionPolling() {
+    const tick = () => {
+        if (document.visibilityState === 'visible') loadSessions();
+    };
+    pollTimer = setInterval(tick, POLL_INTERVAL);
+    // Мгновенно обновляем при возврате на вкладку.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') loadSessions();
+    });
+}
 
 async function createSession(btn, user) {
     btn.disabled = true;
