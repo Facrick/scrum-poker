@@ -14,6 +14,7 @@ let currentState = null;
 let myVote = null;          // локальный выбор карты до вскрытия
 let timerInterval = null;   // setInterval для таймера
 let backlogOpen = false;    // видимость бэклог-панели
+let connectTimeout = null;  // таймаут экрана подключения
 const joinMode = !!roomId;
 
 // ---------- Лобби ----------
@@ -142,8 +143,6 @@ function switchToCreateMode(errorMsg) {
 }
 
 // ---------- Экран подключения ----------
-let connectTimeout = null;
-
 function showConnecting() {
     $("lobby").classList.add("hidden");
     $("room").classList.add("hidden");

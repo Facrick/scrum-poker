@@ -205,26 +205,34 @@
 
         /* Модалка создания сессии */
         .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,.55);
+            position: fixed; inset: 0; background: rgba(1,4,9,.78);
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
             display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 100;
+            animation: modalFade .15s ease-out;
         }
+        @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
         .modal {
-            width: 100%; max-width: 460px;
-            background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
-            padding: 1.5rem;
+            width: 100%; max-width: 480px;
+            background: var(--bg-soft, #161b22);
+            border: 1px solid var(--border-2, #484f58); border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 24px 64px rgba(0,0,0,.6);
         }
-        .modal-title { font-size: 1.15rem; font-weight: 800; color: var(--text); margin-bottom: 1.1rem; }
-        .modal-field { display: block; margin-bottom: 1rem; }
-        .modal-field > span { display: block; font-size: .82rem; color: var(--text-muted); margin-bottom: .4rem; }
-        .modal-field > span em { font-style: normal; opacity: .8; }
+        .modal-title { font-size: 1.3rem; font-weight: 800; color: var(--text); margin: 0 0 1.4rem; }
+        .modal-field { display: block; margin-bottom: 1.1rem; }
+        .modal-field > span { display: block; font-size: .8rem; font-weight: 600; color: var(--text-muted); margin-bottom: .45rem; }
+        .modal-field > span em { font-style: normal; font-weight: 400; opacity: .75; }
         .modal-field input, .modal-field textarea {
             width: 100%; box-sizing: border-box;
-            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-            color: var(--text); font-family: inherit; font-size: .9rem; padding: .6rem .7rem;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+            color: var(--text); font-family: inherit; font-size: .92rem; padding: .65rem .8rem;
+            transition: border-color .15s;
         }
-        .modal-field textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+        .modal-field textarea { min-height: 130px; resize: vertical; line-height: 1.6; }
         .modal-field input:focus, .modal-field textarea:focus { outline: none; border-color: var(--accent); }
-        .modal-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: .4rem; }
+        .modal-field input::placeholder, .modal-field textarea::placeholder { color: var(--text-muted); opacity: .55; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: .7rem; margin-top: 1.6rem; }
+        .modal-actions button { padding: .6rem 1.2rem; font-size: .9rem; border-radius: 10px; }
     </style>
 </head>
 <body>
