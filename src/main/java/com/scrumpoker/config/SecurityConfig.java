@@ -10,6 +10,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 
 @Configuration
 @EnableWebSecurity
@@ -32,13 +33,18 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
 
-            // Полностью stateless: никаких HTTP-сессий и JSESSIONID.
-            // Railway нестабильно пробрасывает Set-Cookie и перезапускает контейнер,
-            // теряя in-memory сессии — поэтому аутентификация идёт через JWT в заголовке.
-            // OAuth2-флоу хранит свой authorization_request в сессии лишь на время
-            // редиректа на провайдера; для этого допускаем создание сессии IF_REQUIRED.
+            // Аутентификация stateless — её держит ТОЛЬКО JWT в заголовке.
+            // SecurityContext храним в атрибуте запроса, а НЕ в сессии: иначе
+            // oauth2Login по умолчанию сохранял бы контекст в HttpSession, и вход
+            // держался бы на JSESSIONID — тогда очистка токена при выходе не
+            // разлогинивала бы пользователя (баг: бадж висел после "Выйти").
+            // Сессия (IF_REQUIRED) нужна лишь OAuth2 для хранения authorization_request
+            // на время редиректа на провайдера; держать вход она больше не будет.
             .sessionManagement(sm -> sm
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+            )
+            .securityContext(sc -> sc
+                .securityContextRepository(new RequestAttributeSecurityContextRepository())
             )
 
             .authorizeHttpRequests(auth -> auth
