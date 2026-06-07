@@ -134,12 +134,37 @@ function switchToCreateMode(errorMsg) {
     localStorage.removeItem("sp_pid");
     localStorage.removeItem("sp_role");
     history.replaceState(null, "", "/");
+    clearTimeout(connectTimeout);
+    $("connecting").classList.add("hidden");
+    $("lobby").classList.remove("hidden");
     switchLobbyTab("create");
     if (errorMsg) lobbyError(errorMsg);
 }
 
+// ---------- Экран подключения ----------
+let connectTimeout = null;
+
+function showConnecting() {
+    $("lobby").classList.add("hidden");
+    $("room").classList.add("hidden");
+    $("connectingText").classList.remove("hidden");
+    $("connectingError").textContent = "";
+    $("connectingBack").classList.add("hidden");
+    $("connecting").classList.remove("hidden");
+    // Если за 10с не подключились/не вошли — показываем ошибку и путь назад.
+    clearTimeout(connectTimeout);
+    connectTimeout = setTimeout(() => {
+        if (!myId) {
+            $("connectingText").classList.add("hidden");
+            $("connectingError").textContent = "Не удалось подключиться к комнате.";
+            $("connectingBack").classList.remove("hidden");
+        }
+    }, 10000);
+}
+
 // ---------- WebSocket ----------
 function connectAndJoin(name, role) {
+    showConnecting();
     stompClient = new StompJs.Client({
         brokerURL: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
         reconnectDelay: 3000,
@@ -185,6 +210,7 @@ function onMe(body) {
 }
 
 function showRoom(inRoom) {
+    if (inRoom) { clearTimeout(connectTimeout); $("connecting").classList.add("hidden"); }
     $("lobby").classList.toggle("hidden", inRoom);
     $("room").classList.toggle("hidden", !inRoom);
     if (inRoom && moderatorUser) {
