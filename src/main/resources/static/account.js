@@ -1,3 +1,5 @@
+let _user = null; // профиль, нужен кнопке «Новая сессия» из пустого состояния
+
 (async () => {
     // ── Загрузка профиля ──────────────────────────────────────────
     let user;
@@ -10,6 +12,7 @@
         location.href = '/login';
         return;
     }
+    _user = user;
 
     const card = document.getElementById('profileCard');
     const avatarEl = user.avatarUrl
@@ -33,78 +36,139 @@
     });
 
     // ── Новая сессия ──────────────────────────────────────────────
-    const newSessionBtn = document.getElementById('newSessionBtn');
-    newSessionBtn.addEventListener('click', async () => {
-        newSessionBtn.disabled = true;
-        newSessionBtn.textContent = '…';
-        try {
-            const res = await spAuth.fetch('/api/me/rooms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: 'Новая сессия', deck: 'FIBONACCI' })
-            });
-            if (!res.ok) throw new Error('create failed');
-            const { roomId } = await res.json();
-            // Сохраняем имя, чтобы лобби подхватило → сразу войдём
-            localStorage.setItem('sp_name', user.displayName || 'Модератор');
-            // host=1 — лобби сразу подключит создателя в комнату (он станет
-            // модератором как первый вошедший), минуя экран "Войти в комнату".
-            location.href = '/?room=' + encodeURIComponent(roomId) + '&host=1';
-        } catch {
-            newSessionBtn.disabled = false;
-            newSessionBtn.textContent = '+ Новая сессия';
-            alert('Не удалось создать сессию. Попробуйте ещё раз.');
-        }
+    document.querySelectorAll('.btn-new-session').forEach(btn => {
+        btn.addEventListener('click', () => createSession(btn, user));
     });
 
     // ── Загрузка истории сессий ───────────────────────────────────
     try {
         const res = await spAuth.fetch('/api/me/sessions');
         const sessions = res.ok ? await res.json() : [];
+        renderSummary(sessions);
         renderSessions(sessions);
     } catch {
         renderSessions([]);
     }
 })();
 
-function renderSessions(sessions) {
-    const skeleton = document.getElementById('sessionsSkeleton');
-    const empty    = document.getElementById('sessionsEmpty');
-    const table    = document.getElementById('sessionsTable');
-    const tbody    = document.getElementById('sessionsBody');
+async function createSession(btn, user) {
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = '…';
+    try {
+        const res = await spAuth.fetch('/api/me/rooms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Новая сессия', deck: 'FIBONACCI' })
+        });
+        if (!res.ok) throw new Error('create failed');
+        const { roomId } = await res.json();
+        // Сохраняем имя, чтобы лобби подхватило → сразу войдём как ведущий
+        localStorage.setItem('sp_name', user.displayName || 'Модератор');
+        location.href = '/?room=' + encodeURIComponent(roomId) + '&host=1';
+    } catch {
+        btn.disabled = false;
+        btn.textContent = prev;
+        toast('Не удалось создать сессию. Попробуйте ещё раз.');
+    }
+}
 
-    skeleton.style.display = 'none';
+function renderSummary(sessions) {
+    const row = document.getElementById('statsRow');
+    if (!sessions.length) { row.style.display = 'none'; return; }
+    const active = sessions.filter(s => s.alive).length;
+    const tasksTotal = sessions.reduce((n, s) => n + (s.taskCount || 0), 0);
+    const tasksEst = sessions.reduce((n, s) => n + (s.estimatedCount || 0), 0);
+
+    document.getElementById('statTotal').textContent = sessions.length;
+    document.getElementById('statActive').textContent = active;
+    document.getElementById('statEstimated').innerHTML =
+        `${tasksEst}<span class="stat-sub">/${tasksTotal}</span>`;
+    row.style.display = '';
+}
+
+function renderSessions(sessions) {
+    const grid = document.getElementById('sessionsGrid');
+    const hint = document.getElementById('sessionsHint');
+    grid.innerHTML = '';
 
     if (!sessions.length) {
-        empty.style.display = '';
+        hint.textContent = '';
+        grid.innerHTML = `
+            <div class="sessions-empty">
+                <strong>Пока нет сессий</strong>
+                Создайте комнату — она появится здесь, а вы сразу станете ведущим.
+                <div><button class="btn-new-session">+ Новая сессия</button></div>
+            </div>`;
+        // Кнопка из пустого состояния тоже должна работать
+        grid.querySelector('.btn-new-session')
+            .addEventListener('click', (e) => createSession(e.currentTarget, currentUser()));
         return;
     }
 
-    table.style.display = '';
-    tbody.innerHTML = sessions.map(s => {
-        const allDone = s.taskCount > 0 && s.estimatedCount === s.taskCount;
-        const taskLabel = s.taskCount === 0
-            ? '<span class="tag-pill">нет задач</span>'
-            : `${s.estimatedCount}/${s.taskCount} оценено ${allDone ? '<span class="tag-pill done">✓</span>' : ''}`;
-        const date   = fmtDate(s.lastActiveAt);
-        const origin = location.origin;
+    hint.textContent = sessions.length === 1 ? '1 сессия' : `${sessions.length} сессий`;
 
-        const statusCell = s.alive
-            ? `<span class="status-alive">Активна</span>
-               <br><a href="${origin}/?room=${esc(s.roomId)}" target="_blank"
-                       style="font-size:.75rem;color:var(--accent,#2f81f7)">Войти →</a>`
-            : `<span class="status-done">Завершена</span>`;
-
-        return `<tr>
-            <td><a class="room-link" href="${origin}/?room=${esc(s.roomId)}" target="_blank">${esc(s.roomName || s.roomId)}</a>
-                <br><small style="color:var(--text-muted);font-size:.75rem">${esc(s.roomId)}</small></td>
-            <td>${statusCell}</td>
-            <td>${s.participantCount}</td>
-            <td>${taskLabel}</td>
-            <td style="color:var(--text-muted);white-space:nowrap">${date}</td>
-        </tr>`;
-    }).join('');
+    sessions.forEach(s => grid.appendChild(sessionCard(s)));
 }
+
+function sessionCard(s) {
+    const el = document.createElement('div');
+    el.className = 'sess-card' + (s.alive ? ' live' : '');
+
+    const done = s.taskCount > 0 && s.estimatedCount === s.taskCount;
+    const pct = s.taskCount > 0 ? Math.round(s.estimatedCount / s.taskCount * 100) : 0;
+    const inviteUrl = location.origin + '/?room=' + encodeURIComponent(s.roomId);
+
+    const statusHtml = s.alive
+        ? `<span class="sess-status live">● Активна</span>`
+        : `<span class="sess-status done">Завершена</span>`;
+
+    const progressHtml = s.taskCount > 0
+        ? `<div class="progress-wrap">
+               <div class="metric-mini">
+                   <span class="mv">${s.estimatedCount}/${s.taskCount}</span>
+                   <span class="ml">задач оценено</span>
+               </div>
+               <div class="progress-track">
+                   <div class="progress-fill ${done ? '' : 'partial'}" style="width:${pct}%"></div>
+               </div>
+           </div>`
+        : `<div class="metric-mini"><span class="mv">—</span><span class="ml">нет задач</span></div>`;
+
+    el.innerHTML = `
+        <div class="sess-head">
+            ${s.alive
+                ? `<a class="sess-name" href="${esc(inviteUrl)}&host=1">${esc(s.roomName || s.roomId)}</a>`
+                : `<span class="sess-name" style="cursor:default">${esc(s.roomName || s.roomId)}</span>`}
+            ${statusHtml}
+        </div>
+        <div class="sess-id">
+            <code>${esc(s.roomId)}</code>
+            <button class="icon-btn" data-copy="${esc(inviteUrl)}" title="Скопировать ссылку-приглашение">⎘ ссылка</button>
+        </div>
+        <div class="sess-metrics">
+            <div class="metric-mini"><span class="mv">${s.participantCount}</span><span class="ml">участников</span></div>
+            ${progressHtml}
+        </div>
+        <div class="sess-foot">
+            <span class="sess-date">${fmtDate(s.lastActiveAt)}</span>
+            ${s.alive
+                ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти →</a>`
+                : ''}
+        </div>
+    `;
+
+    const copyBtn = el.querySelector('[data-copy]');
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(copyBtn.dataset.copy)
+            .then(() => toast('Ссылка скопирована — отправьте команде', true))
+            .catch(() => toast('Не удалось скопировать'));
+    });
+
+    return el;
+}
+
+function currentUser() { return _user || { displayName: 'Модератор' }; }
 
 function fmtDate(iso) {
     if (!iso) return '—';
@@ -113,6 +177,16 @@ function fmtDate(iso) {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });
+}
+
+let toastTimer = null;
+function toast(msg, success) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.toggle('success', !!success);
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
 function esc(s) {

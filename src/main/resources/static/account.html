@@ -11,7 +11,7 @@
         body { background: var(--bg); }
 
         .account-layout {
-            max-width: 860px;
+            max-width: 920px;
             margin: 0 auto;
             padding: 2rem 1rem 4rem;
         }
@@ -22,6 +22,8 @@
             align-items: center;
             justify-content: space-between;
             margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: .75rem;
         }
         .acc-brand {
             display: flex;
@@ -33,183 +35,164 @@
             font-weight: 700;
         }
         .acc-brand .suit { color: var(--accent); font-size: 1.2rem; }
+        .acc-actions { display: flex; gap: .5rem; align-items: center; }
 
         /* Профиль */
         .profile-card {
-            background: var(--card);
+            position: relative;
+            background:
+                radial-gradient(900px 120px at 0% 0%, rgba(47,129,247,.10), transparent 60%),
+                var(--card);
             border: 1.5px solid var(--border);
             border-radius: 16px;
             padding: 1.5rem;
             display: flex;
             align-items: center;
             gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .profile-avatar, .profile-avatar-placeholder {
+            width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+        }
+        .profile-avatar { object-fit: cover; background: var(--border); }
+        .profile-avatar-placeholder {
+            background: var(--accent); color: #fff; font-size: 1.6rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .profile-info { flex: 1; min-width: 0; }
+        .profile-name { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: .2rem; }
+        .profile-email { font-size: .85rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+        .profile-provider {
+            display: inline-block; margin-top: .5rem; font-size: .75rem; font-weight: 500;
+            padding: .2rem .6rem; border-radius: 999px; background: var(--bg);
+            border: 1px solid var(--border); color: var(--text-muted); text-transform: capitalize;
+        }
+
+        /* Сводка (стат-бар) */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: .75rem;
             margin-bottom: 2rem;
         }
-        .profile-avatar {
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: var(--border);
-            flex-shrink: 0;
-        }
-        .profile-avatar-placeholder {
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            background: var(--accent);
-            color: #fff;
-            font-size: 1.6rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .profile-info { flex: 1; }
-        .profile-name {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: .2rem;
-        }
-        .profile-email {
-            font-size: .85rem;
-            color: var(--text-muted);
-        }
-        .profile-provider {
-            display: inline-block;
-            margin-top: .5rem;
-            font-size: .75rem;
-            font-weight: 500;
-            padding: .2rem .6rem;
-            border-radius: 999px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            text-transform: capitalize;
-        }
-
-        /* Секция сессий */
-        .section-title {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 1rem;
-        }
-        .sessions-table-wrap {
+        .stat-card {
             background: var(--card);
             border: 1.5px solid var(--border);
-            border-radius: 16px;
-            overflow: hidden;
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
         }
-        .sessions-empty {
-            padding: 3rem 1.5rem;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: .9rem;
-        }
-        .sessions-empty strong {
-            display: block;
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: .4rem;
-        }
-        table.sessions {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        table.sessions thead tr {
-            border-bottom: 1.5px solid var(--border);
-        }
-        table.sessions th {
-            padding: .75rem 1.25rem;
-            font-size: .78rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-align: left;
-            text-transform: uppercase;
-            letter-spacing: .04em;
-        }
-        table.sessions td {
-            padding: .85rem 1.25rem;
-            font-size: .9rem;
-            color: var(--text);
-            border-bottom: 1px solid var(--border);
-        }
-        table.sessions tbody tr:last-child td { border-bottom: none; }
-        table.sessions tbody tr:hover td { background: var(--bg); }
-        .tag-pill {
-            display: inline-block;
-            padding: .15rem .5rem;
-            border-radius: 999px;
-            font-size: .75rem;
-            font-weight: 600;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-        }
-        .tag-pill.done {
-            background: #d1fae5;
-            border-color: #6ee7b7;
-            color: #065f46;
-        }
-        .room-link {
-            font-weight: 600;
-            color: var(--text);
-            text-decoration: none;
-        }
-        .room-link:hover { color: var(--accent); text-decoration: underline; }
+        .stat-value { font-size: 1.5rem; font-weight: 800; color: var(--text); line-height: 1; }
+        .stat-value .stat-sub { font-size: .9rem; font-weight: 600; color: var(--text-muted); }
+        .stat-label { margin-top: .35rem; font-size: .78rem; color: var(--text-muted); }
 
-        /* Кнопка «Новая сессия» */
+        /* Заголовок секции */
+        .section-head {
+            display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1rem;
+        }
+        .section-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+        .section-hint { font-size: .8rem; color: var(--text-muted); }
+
+        /* Сетка карточек сессий */
+        .sessions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: .85rem;
+        }
+        .sess-card {
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+            display: flex;
+            flex-direction: column;
+            gap: .7rem;
+            transition: border-color .15s, transform .15s;
+        }
+        .sess-card:hover { border-color: var(--border-2); transform: translateY(-2px); }
+        .sess-card.live { border-left: 3px solid var(--success); }
+
+        .sess-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+        .sess-name { font-weight: 700; font-size: .98rem; color: var(--text); text-decoration: none; word-break: break-word; }
+        .sess-name:hover { color: var(--accent); }
+        .sess-status { flex-shrink: 0; font-size: .72rem; font-weight: 600; padding: .15rem .5rem; border-radius: 999px; white-space: nowrap; }
+        .sess-status.live { color: var(--success); background: var(--success-l); }
+        .sess-status.done { color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); }
+
+        .sess-id { display: flex; align-items: center; gap: .4rem; }
+        .sess-id code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: .76rem; color: var(--text-muted);
+            background: var(--bg); border: 1px solid var(--border);
+            padding: .1rem .4rem; border-radius: 6px;
+        }
+        .icon-btn {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-muted); cursor: pointer; font-size: .72rem;
+            padding: .12rem .4rem; transition: border-color .15s, color .15s;
+        }
+        .icon-btn:hover { border-color: var(--border-2); color: var(--text); }
+
+        .sess-metrics { display: flex; gap: 1.25rem; }
+        .metric-mini { display: flex; flex-direction: column; gap: .15rem; }
+        .metric-mini .mv { font-weight: 700; font-size: .9rem; color: var(--text); }
+        .metric-mini .ml { font-size: .72rem; color: var(--text-muted); }
+
+        .progress-wrap { flex: 1; min-width: 0; }
+        .progress-track { height: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; margin-top: .35rem; }
+        .progress-fill { height: 100%; border-radius: 999px; background: var(--success); transition: width .3s; }
+        .progress-fill.partial { background: var(--accent); }
+
+        .sess-foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .1rem; }
+        .sess-date { font-size: .74rem; color: var(--text-muted); white-space: nowrap; }
+        .sess-enter {
+            font-size: .82rem; font-weight: 600; color: #fff; background: var(--accent);
+            text-decoration: none; padding: .35rem .75rem; border-radius: 8px; transition: opacity .15s;
+        }
+        .sess-enter:hover { opacity: .85; }
+
+        /* Пустое состояние */
+        .sessions-empty {
+            grid-column: 1 / -1;
+            padding: 3rem 1.5rem; text-align: center; color: var(--text-muted); font-size: .9rem;
+            background: var(--card); border: 1.5px dashed var(--border); border-radius: 14px;
+        }
+        .sessions-empty strong { display: block; font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: .4rem; }
+        .sessions-empty .btn-new-session { margin-top: 1rem; }
+
+        /* Кнопки */
         .btn-new-session {
-            background: var(--accent, #2f81f7);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: .45rem .9rem;
-            font-size: .85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity .15s;
+            background: var(--accent); color: #fff; border: none; border-radius: 8px;
+            padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
         }
         .btn-new-session:hover { opacity: .85; }
         .btn-new-session:disabled { opacity: .4; cursor: not-allowed; }
-
-        /* Статус живой комнаты */
-        .status-alive {
-            display: inline-flex; align-items: center; gap: 5px;
-            color: #16a34a; font-weight: 600; font-size: .82rem;
-        }
-        .status-alive::before {
-            content: ''; width: 7px; height: 7px; border-radius: 50%;
-            background: #22c55e; flex-shrink: 0;
-        }
-        .status-done { color: var(--text-muted); font-size: .82rem; }
-
-        /* Кнопка выхода */
         .btn-logout {
-            background: none;
-            border: 1.5px solid var(--border);
-            border-radius: 8px;
-            padding: .45rem .9rem;
-            font-size: .85rem;
-            font-weight: 500;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: border-color .15s, color .15s;
+            background: none; border: 1.5px solid var(--border); border-radius: 8px;
+            padding: .45rem .9rem; font-size: .85rem; font-weight: 500; color: var(--text-muted);
+            cursor: pointer; transition: border-color .15s, color .15s;
         }
-        .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+        .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
 
-        /* Скелетон загрузки */
+        /* Скелетон */
         .skeleton {
             background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.4s infinite;
-            border-radius: 6px;
+            background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px;
         }
         @keyframes shimmer { to { background-position: -200% 0; } }
+
+        /* Тост */
+        .toast {
+            position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(1rem);
+            background: var(--card); border: 1px solid var(--border); color: var(--text);
+            padding: .6rem 1rem; border-radius: 10px; font-size: .85rem; opacity: 0; pointer-events: none;
+            transition: opacity .2s, transform .2s; z-index: 50;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { border-color: var(--success); }
+
+        @media (max-width: 560px) {
+            .stats-row { grid-template-columns: 1fr 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -219,7 +202,7 @@
         <a class="acc-brand" href="/">
             <span class="suit">♠</span> Scrum Poker
         </a>
-        <div style="display:flex;gap:.5rem;align-items:center">
+        <div class="acc-actions">
             <button class="btn-new-session" id="newSessionBtn">+ Новая сессия</button>
             <button class="btn-logout" id="logoutBtn">Выйти</button>
         </div>
@@ -227,43 +210,48 @@
 
     <!-- Профиль -->
     <div class="profile-card" id="profileCard">
-        <div class="profile-avatar-placeholder skeleton" style="width:64px;height:64px;border-radius:50%"></div>
+        <div class="profile-avatar-placeholder skeleton"></div>
         <div class="profile-info">
             <div class="profile-name skeleton" style="width:160px;height:18px;margin-bottom:.4rem"></div>
             <div class="profile-email skeleton" style="width:220px;height:14px"></div>
         </div>
     </div>
 
-    <!-- История сессий -->
-    <p class="section-title">История сессий</p>
-    <div class="sessions-table-wrap" id="sessionsWrap">
-        <div class="sessions-empty" id="sessionsEmpty" style="display:none">
-            <strong>Пока нет сессий</strong>
-            Создайте комнату, войдя как модератор, и она появится здесь.
+    <!-- Сводка -->
+    <div class="stats-row" id="statsRow" style="display:none">
+        <div class="stat-card">
+            <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-label">Всего сессий</div>
         </div>
-        <table class="sessions" id="sessionsTable" style="display:none">
-            <thead>
-                <tr>
-                    <th>Сессия</th>
-                    <th>Статус</th>
-                    <th>Участники</th>
-                    <th>Задачи</th>
-                    <th>Последняя активность</th>
-                </tr>
-            </thead>
-            <tbody id="sessionsBody"></tbody>
-        </table>
+        <div class="stat-card">
+            <div class="stat-value" id="statActive">0</div>
+            <div class="stat-label">Активны сейчас</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="statEstimated">0<span class="stat-sub">/0</span></div>
+            <div class="stat-label">Задач оценено</div>
+        </div>
+    </div>
+
+    <!-- История сессий -->
+    <div class="section-head">
+        <span class="section-title">История сессий</span>
+        <span class="section-hint" id="sessionsHint"></span>
+    </div>
+    <div class="sessions-grid" id="sessionsGrid">
         <!-- скелетон во время загрузки -->
-        <div id="sessionsSkeleton" style="padding:1.25rem">
-            <div class="skeleton" style="height:14px;width:60%;margin-bottom:.75rem"></div>
-            <div class="skeleton" style="height:14px;width:40%;margin-bottom:.75rem"></div>
-            <div class="skeleton" style="height:14px;width:75%"></div>
+        <div class="sess-card" id="sessionsSkeleton">
+            <div class="skeleton" style="height:16px;width:60%"></div>
+            <div class="skeleton" style="height:12px;width:40%"></div>
+            <div class="skeleton" style="height:24px;width:80%"></div>
         </div>
     </div>
 
 </div>
 
+<div id="toast" class="toast"></div>
+
 <script src="auth.js?v=1"></script>
-<script src="account.js?v=3"></script>
+<script src="account.js?v=4"></script>
 </body>
 </html>
