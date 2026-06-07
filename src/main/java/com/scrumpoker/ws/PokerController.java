@@ -133,6 +133,74 @@ public class PokerController {
         broadcast(room);
     }
 
+    // ───────────── Async-оценка (#3) ─────────────
+
+    @MessageMapping("/room/{roomId}/async")
+    public void setAsyncMode(@DestinationVariable String roomId, @Payload Messages.AsyncModeMessage msg,
+                             SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
+        room.setAsync(msg.enabled());
+        broadcast(room);
+    }
+
+    /** Голос участника по конкретной задаче в async-режиме. */
+    @MessageMapping("/room/{roomId}/backlog/vote")
+    public void asyncVote(@DestinationVariable String roomId, @Payload Messages.AsyncVoteMessage msg,
+                          SimpMessageHeaderAccessor headers) {
+        Room room = resolve(roomId, headers);
+        if (room == null || !room.isAsync()) return;
+        Participant p = actor(room, headers);
+        if (p == null || p.getRole() == Participant.Role.OBSERVER) return;
+        if (!room.getEffectiveCards().contains(msg.value())) return;
+        room.getBacklog().stream()
+                .filter(i -> i.getId().equals(msg.itemId()) && !i.isRevealed())
+                .findFirst()
+                .ifPresent(i -> i.putLiveVote(p.getId(), msg.value()));
+        broadcast(room);
+    }
+
+    /** Ведущий вскрывает голоса по задаче (значения становятся видны всем). */
+    @MessageMapping("/room/{roomId}/backlog/reveal")
+    public void asyncReveal(@DestinationVariable String roomId, @Payload Messages.ActivateBacklogItemMessage msg,
+                            SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
+        room.getBacklog().stream()
+                .filter(i -> i.getId().equals(msg.itemId()))
+                .findFirst()
+                .ifPresent(i -> i.setRevealed(true));
+        broadcast(room);
+    }
+
+    /** Ведущий фиксирует итоговую оценку задачи (с привязкой снимка голосов). */
+    @MessageMapping("/room/{roomId}/backlog/estimate")
+    public void asyncEstimate(@DestinationVariable String roomId, @Payload Messages.ItemEstimateMessage msg,
+                              SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.value() == null) return;
+        room.getBacklog().stream()
+                .filter(i -> i.getId().equals(msg.itemId()))
+                .findFirst()
+                .ifPresent(i -> {
+                    i.setEstimate(msg.value());
+                    i.setRevealed(true);
+                    i.setVotes(liveVotesSnapshot(room, i));
+                });
+        broadcast(room);
+    }
+
+    /** Снимок живых голосов задачи (id→значение) в список (имя, значение). */
+    private java.util.List<BacklogItem.RoundVote> liveVotesSnapshot(Room room, BacklogItem item) {
+        return item.getLiveVotes().entrySet().stream()
+                .map(e -> {
+                    Participant p = room.getParticipant(e.getKey());
+                    return new BacklogItem.RoundVote(p != null ? p.getName() : "?", e.getValue());
+                })
+                .sorted(java.util.Comparator.comparing(BacklogItem.RoundVote::name, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
     @MessageMapping("/room/{roomId}/reset")
     public void reset(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
                       SimpMessageHeaderAccessor headers) {

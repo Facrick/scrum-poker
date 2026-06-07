@@ -220,6 +220,47 @@ class PokerControllerTest {
         assertThat(item.getVotes()).extracting("name").contains("Alice", "Bob");
     }
 
+    // ---- Async-оценка (#3) ----
+
+    @Test
+    @Severity(SeverityLevel.CRITICAL)
+    @DisplayName("Async: голоса скрыты до вскрытия, фиксация сохраняет снимок и оценку")
+    void asyncVotingHidesUntilRevealAndFinalizes() {
+        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
+        String bob = join("Bob", "PLAYER", null, "s2");
+        controller.importBacklog(room.getId(),
+                new Messages.ImportBacklogMessage(alice, List.of("Логин", "Корзина")), session("s1"));
+        controller.setAsyncMode(room.getId(), new Messages.AsyncModeMessage(alice, true), session("s1"));
+        assertThat(room.isAsync()).isTrue();
+
+        var item = room.getBacklog().get(0);
+        controller.asyncVote(room.getId(), new Messages.AsyncVoteMessage(alice, item.getId(), "5"), session("s1"));
+        controller.asyncVote(room.getId(), new Messages.AsyncVoteMessage(bob, item.getId(), "8"), session("s2"));
+        assertThat(item.getLiveVotes()).hasSize(2);
+        assertThat(item.isRevealed()).isFalse();
+
+        // Наблюдатель не голосует
+        controller.asyncReveal(room.getId(), new Messages.ActivateBacklogItemMessage(alice, item.getId()), session("s1"));
+        assertThat(item.isRevealed()).isTrue();
+
+        controller.asyncEstimate(room.getId(),
+                new Messages.ItemEstimateMessage(alice, item.getId(), "8"), session("s1"));
+        assertThat(item.getEstimate()).isEqualTo("8");
+        assertThat(item.getVotes()).extracting("value").containsExactlyInAnyOrder("5", "8");
+    }
+
+    @Test
+    @DisplayName("Async: голос от не-модератора по чужой команде всё равно учитывается как голос участника")
+    void asyncVoteIgnoredWhenNotAsync() {
+        String alice = join("Alice", "PLAYER", null, "s1");
+        controller.importBacklog(room.getId(),
+                new Messages.ImportBacklogMessage(alice, List.of("X")), session("s1"));
+        var item = room.getBacklog().get(0);
+        // async выключен → голос по задаче не принимается
+        controller.asyncVote(room.getId(), new Messages.AsyncVoteMessage(alice, item.getId(), "5"), session("s1"));
+        assertThat(item.getLiveVotes()).isEmpty();
+    }
+
     // ---- Импорт бэклога списком ----
 
     @Test

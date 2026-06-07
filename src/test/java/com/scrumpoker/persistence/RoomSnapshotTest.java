@@ -55,7 +55,7 @@ class RoomSnapshotTest {
         RoomSnapshot snap = new RoomSnapshot(
                 "abc12345", "Room", "FIBONACCI", null, "", false, null, 0,
                 null,                       // createdAt == null (старый/битый снимок)
-                java.util.List.of(), java.util.List.of(), null, null); // null ownerUserId
+                java.util.List.of(), java.util.List.of(), null, null, false); // ownerUserId, async
         assertThatCode(snap::toRoom).doesNotThrowAnyException();
         assertThat(snap.toRoom().getCreatedAt()).isNotNull();
     }

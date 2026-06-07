@@ -21,12 +21,14 @@ public record RoomStateDto(
         Long timerStartedAt,   // epoch millis, null = таймер не запущен
         int timerSeconds,
         List<BacklogItemView> backlog,
-        String activeItemId
+        String activeItemId,
+        boolean async
 ) {
     public record ParticipantView(String id, String name, String role, boolean online,
                                    boolean hasVoted, String vote) {}
     public record BacklogItemView(String id, String title, String estimate,
-                                  int revotes, List<VoteView> votes) {}
+                                  int revotes, List<VoteView> votes,
+                                  int voteCount, boolean itemRevealed) {}
     public record VoteView(String name, String value) {}
 
     public static RoomStateDto from(Room room) {
@@ -47,12 +49,26 @@ public record RoomStateDto(
         Long timerStartedAt = room.getTimerStartedAt() != null
                 ? room.getTimerStartedAt().toEpochMilli() : null;
 
+        boolean async = room.isAsync();
         List<BacklogItemView> backlog = room.getBacklog().stream()
-                .map(i -> new BacklogItemView(i.getId(), i.getTitle(), i.getEstimate(),
-                        i.getRevotes(),
-                        i.getVotes().stream()
+                .map(i -> {
+                    // В async голоса видны только после вскрытия задачи (иначе — пусто).
+                    List<VoteView> votes;
+                    if (async) {
+                        votes = i.isRevealed()
+                                ? i.getLiveVotes().entrySet().stream()
+                                    .map(e -> new VoteView(nameOf(room, e.getKey()), e.getValue()))
+                                    .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
+                                    .collect(Collectors.toList())
+                                : List.of();
+                    } else {
+                        votes = i.getVotes().stream()
                                 .map(v -> new VoteView(v.name(), v.value()))
-                                .collect(Collectors.toList())))
+                                .collect(Collectors.toList());
+                    }
+                    return new BacklogItemView(i.getId(), i.getTitle(), i.getEstimate(),
+                            i.getRevotes(), votes, i.getLiveVotes().size(), i.isRevealed());
+                })
                 .collect(Collectors.toList());
 
         return new RoomStateDto(
@@ -68,7 +84,13 @@ public record RoomStateDto(
                 timerStartedAt,
                 room.getTimerSeconds(),
                 backlog,
-                room.getActiveItemId());
+                room.getActiveItemId(),
+                async);
+    }
+
+    private static String nameOf(Room room, String participantId) {
+        Participant p = room.getParticipant(participantId);
+        return p != null ? p.getName() : "?";
     }
 
     /** Статистика раунда: среднее, медиана, распределение, наличие консенсуса. */

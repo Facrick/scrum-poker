@@ -25,4 +25,9 @@ public final class Messages {
     public record RemoveBacklogItemMessage(String participantId, String itemId) {}
     public record ActivateBacklogItemMessage(String participantId, String itemId) {}
     public record ImportBacklogMessage(String participantId, java.util.List<String> titles) {}
+
+    // Async-оценка (#3)
+    public record AsyncModeMessage(String participantId, boolean enabled) {}
+    public record AsyncVoteMessage(String participantId, String itemId, String value) {}
+    public record ItemEstimateMessage(String participantId, String itemId, String value) {}
 }

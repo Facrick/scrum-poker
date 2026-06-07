@@ -1,7 +1,9 @@
 package com.scrumpoker.model;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BacklogItem {
     private final String id;
@@ -12,6 +14,11 @@ public class BacklogItem {
     // проголосовал на момент фиксации оценки.
     private volatile int revotes;
     private volatile List<RoundVote> votes = List.of();
+
+    // Async-оценка (#3): живые голоса по этой задаче (participantId -> значение)
+    // и флаг «вскрыта» (голоса видны всем). В обычном режиме не используются.
+    private final Map<String, String> liveVotes = new ConcurrentHashMap<>();
+    private volatile boolean revealed;
 
     /** Голос одного участника в зафиксированном раунде. */
     public record RoundVote(String name, String value) {}
@@ -39,4 +46,9 @@ public class BacklogItem {
 
     public List<RoundVote> getVotes() { return votes; }
     public void setVotes(List<RoundVote> votes) { this.votes = votes == null ? List.of() : votes; }
+
+    public Map<String, String> getLiveVotes() { return liveVotes; }
+    public void putLiveVote(String participantId, String value) { liveVotes.put(participantId, value); }
+    public boolean isRevealed() { return revealed; }
+    public void setRevealed(boolean revealed) { this.revealed = revealed; }
 }
