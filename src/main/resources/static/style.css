@@ -873,6 +873,13 @@ html[data-theme="light"] .seat .card-slot.revealed {
     letter-spacing: .06em;
 }
 .backlog-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.backlog-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.backlog-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+.backlog-stat .v { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.1; }
+.backlog-stat .l { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
 .backlog-import {
     flex-shrink: 0;
     padding: 10px 14px;

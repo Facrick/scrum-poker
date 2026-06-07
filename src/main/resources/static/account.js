@@ -287,6 +287,11 @@ function buildReportXlsx(data, roomId) {
         const vals = new Set(it.votes.map(v => v.value));
         return vals.size === 1 ? 'Да' : 'Нет';
     };
+    const withVotes = items.filter(i => i.votes && i.votes.length);
+    const consensusCount = withVotes.filter(i => new Set(i.votes.map(v => v.value)).size === 1).length;
+    const consensusRate = withVotes.length ? Math.round(consensusCount / withVotes.length * 100) : 0;
+    const totalRevotes = items.reduce((n, i) => n + (i.revotes || 0), 0);
+    const avgRevotes = estimated ? Math.round(totalRevotes / estimated * 100) / 100 : 0;
 
     // ── Лист «Сводка» ──
     const summary = [
@@ -296,6 +301,8 @@ function buildReportXlsx(data, roomId) {
         ['Всего задач', items.length],
         ['Оценено', estimated],
         ['Сумма оценок (числовых)', Math.round(sumPoints * 10) / 10],
+        ['Доля консенсуса', consensusRate + '%'],
+        ['Сред. переголосований на задачу', avgRevotes],
         [],
         ['№', 'Задача', 'Оценка', 'Переголосований', 'Консенсус', 'Голоса']
     ];

@@ -438,6 +438,30 @@ function renderDeck(state) {
         : "Выберите карту";
 }
 
+// Аналитика всей сессии (по всему бэклогу): оценено, сумма поинтов,
+// доля консенсуса, среднее число переголосований.
+function renderSessionStats(state) {
+    const box = $("backlogStats");
+    const items = (state.backlog || []);
+    const estimated = items.filter(i => i.estimate != null && i.estimate !== "");
+    if (estimated.length === 0) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+
+    const isNum = v => v != null && v !== "" && isFinite(parseFloat(v));
+    const sumPoints = estimated.reduce((n, i) => n + (isNum(i.estimate) ? parseFloat(i.estimate) : 0), 0);
+    const withVotes = estimated.filter(i => i.votes && i.votes.length);
+    const consensusCount = withVotes.filter(i => new Set(i.votes.map(v => v.value)).size === 1).length;
+    const consensusRate = withVotes.length ? Math.round(consensusCount / withVotes.length * 100) : 0;
+    const totalRevotes = items.reduce((n, i) => n + (i.revotes || 0), 0);
+
+    box.innerHTML = `
+        <div class="backlog-stat"><div class="v">${estimated.length}/${items.length}</div><div class="l">Оценено</div></div>
+        <div class="backlog-stat"><div class="v">${Math.round(sumPoints * 10) / 10}</div><div class="l">Σ поинтов</div></div>
+        <div class="backlog-stat"><div class="v">${consensusRate}%</div><div class="l">Консенсус</div></div>
+        <div class="backlog-stat"><div class="v">${totalRevotes}</div><div class="l">Переголосований</div></div>
+    `;
+    box.classList.remove("hidden");
+}
+
 // ---------- Результаты ----------
 function renderResults(state) {
     const el = $("results");
@@ -557,6 +581,8 @@ function renderBacklog(state) {
 
     // Блок импорта списком — только ведущему
     $("backlogImport").classList.toggle("hidden", myRole !== "MODERATOR");
+
+    renderSessionStats(state);
 
     if (!state.backlog) return;
     list.innerHTML = "";
