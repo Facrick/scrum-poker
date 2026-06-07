@@ -78,4 +78,26 @@ public class JwtService {
             return null;
         }
     }
+
+    /**
+     * Скользящая сессия (#10): если у валидного токена истекла бо́льшая половина
+     * срока, возвращает свежий токен для того же пользователя, иначе {@code null}.
+     * Фильтр кладёт его в заголовок ответа, клиент обновляет localStorage.
+     */
+    public String renewIfNeeded(String token) {
+        try {
+            var claims = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            long remaining = claims.getExpiration().getTime() - System.currentTimeMillis();
+            if (remaining > 0 && remaining < ttlMillis / 2) {
+                return issue(claims.getSubject());
+            }
+        } catch (JwtException | IllegalArgumentException ignored) {
+            // невалидный/просроченный токен не продлеваем
+        }
+        return null;
+    }
 }

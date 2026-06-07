@@ -46,8 +46,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            String userId = jwtService.parseUserId(header.substring(7));
+            String token = header.substring(7);
+            String userId = jwtService.parseUserId(token);
             if (userId != null) {
+                // Скользящая сессия: отдаём свежий токен, если срок на исходе (#10).
+                String renewed = jwtService.renewIfNeeded(token);
+                if (renewed != null) res.setHeader("X-Refresh-Token", renewed);
                 userRepository.findById(userId).ifPresent(user -> {
                     Map<String, Object> attrs = Map.of("_userId", user.id());
                     OAuth2User principal = new DefaultOAuth2User(
