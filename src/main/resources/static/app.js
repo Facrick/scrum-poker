@@ -88,7 +88,9 @@ async function onPrimary() {
         if (lobbyMode === "create") {
             const rawRoomName = $("roomNameInput").value.trim();
             const roomName = rawRoomName || "Покер · " + name;
-            const res = await fetch("/api/rooms", {
+            // spAuth.fetch добавит Authorization: Bearer, если модератор вошёл —
+            // иначе сервер не свяжет комнату с владельцем и её не будет в истории ЛК.
+            const res = await spAuth.fetch("/api/rooms", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name: roomName, deck: "FIBONACCI" })
