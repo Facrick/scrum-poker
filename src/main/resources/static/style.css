@@ -1042,6 +1042,60 @@ html[data-theme="light"] .seat .card-slot.revealed {
     background: var(--danger-l);
 }
 
+/* Активное (нажатое) состояние ghost-кнопок: ⚙ панель управления и т.п. */
+.btn-ghost.active {
+    color: var(--text);
+    border-color: var(--primary);
+    background: var(--primary-l);
+}
+
+/* Шестерёнка панели управления — только на мобиле (на десктопе панель видна всегда) */
+#modToggleBtn { display: none; }
+
+/* Свёрнутая панель управления (на мобиле по кнопке ⚙) */
+.mod-panel.collapsed { display: none; }
+
+/* Кнопка сворачивания колоды — только на мобиле */
+.deck-collapse {
+    display: none;
+    align-self: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 999px;
+    font: inherit; font-size: 12px; font-weight: 600;
+    padding: 3px 14px; cursor: pointer; line-height: 1.4;
+}
+.deck-collapse:hover { color: var(--text); border-color: var(--border-2); }
+.deckbar.collapsed .deck,
+.deckbar.collapsed .deck-hint { display: none; }
+.deckbar.collapsed { padding-bottom: 10px; }
+
+/* Имена за столом: до двух строк, без грубого обрезания в одну */
+.seat .who { max-width: 100%; }
+.seat .pname {
+    white-space: normal;
+    text-align: center;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.2;
+}
+
+/* Шапка бэклога: действия в ряд + кнопка закрытия (видна на мобиле) */
+.backlog-header-actions { display: flex; align-items: center; gap: 6px; }
+.backlog-close {
+    display: none;
+    width: 30px; height: 30px; flex-shrink: 0;
+    align-items: center; justify-content: center;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--muted);
+    font-size: 13px; cursor: pointer; padding: 0;
+}
+.backlog-close:hover { color: var(--text); border-color: var(--border-2); }
+
 /* =====================================================
    Responsive  (планшет → телефон)
    ===================================================== */
@@ -1082,12 +1136,26 @@ html[data-theme="light"] .seat .card-slot.revealed {
     #revealBtn, #resetBtn { flex: 1 1 calc(50% - 4px); }
     #asyncToggle { flex: 1 1 100%; }
 
-    /* Тело комнаты — в столбик, бэклог снизу выезжающей панелью */
+    /* Показываем мобильные органы управления */
+    #modToggleBtn  { display: inline-flex; }
+    .deck-collapse { display: inline-block; }
+    .backlog-close { display: inline-flex; }
+
+    /* Развёрнутая панель управления не должна занимать весь экран */
+    .mod-panel:not(.collapsed) { max-height: 62vh; overflow-y: auto; }
+
+    /* Тело комнаты — в столбик; стол занимает всё, бэклог — выезжающий лист снизу */
     .room-body     { flex-direction: column; }
     .backlog-panel {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
         width: 100%; min-width: unset;
-        border-left: none; border-top: 1px solid var(--border);
-        max-height: 42vh;
+        height: 80vh; max-height: 80vh;
+        border: none; border-top: 1px solid var(--border);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -10px 36px rgba(0, 0, 0, .5);
+        z-index: 120;
+        padding-bottom: env(safe-area-inset-bottom);
     }
 
     /* Стол: компактные места, но читаемые */

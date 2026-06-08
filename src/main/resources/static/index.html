@@ -100,6 +100,7 @@
             </div>
             <span id="onlineCount" class="pill">0 онлайн</span>
             <span id="connDot" class="conn-dot" title="Соединение"></span>
+            <button id="modToggleBtn" class="btn btn-ghost btn-sm hidden" title="Панель управления">⚙</button>
             <button id="toggleBacklogBtn" class="btn btn-ghost btn-sm">Бэклог</button>
             <button id="copyLinkBtn"      class="btn btn-ghost btn-sm"><span class="btn-ico">🔗</span><span class="link-text">Пригласить</span></button>
             <button id="leaveRoomBtn"     class="btn btn-ghost btn-sm" title="Выйти из комнаты"><span class="btn-ico">🚪</span><span class="link-text">Выход</span></button>
@@ -155,7 +156,10 @@
         <aside id="backlogPanel" class="backlog-panel hidden">
             <div class="backlog-header">
                 <span>Бэклог</span>
-                <button id="exportCsvBtn" class="btn btn-ghost btn-sm">Экспорт XLS</button>
+                <div class="backlog-header-actions">
+                    <button id="exportCsvBtn" class="btn btn-ghost btn-sm">Экспорт XLS</button>
+                    <button id="backlogCloseBtn" class="backlog-close" title="Закрыть">✕</button>
+                </div>
             </div>
             <div id="backlogStats" class="backlog-stats hidden"></div>
             <div id="backlogList" class="backlog-list"></div>
@@ -168,6 +172,7 @@
     </div>
 
     <footer id="deckBar" class="deckbar">
+        <button id="deckCollapseBtn" class="deck-collapse" type="button" title="Свернуть карты">▾ Свернуть карты</button>
         <div id="deck" class="deck"></div>
         <p id="deckHint" class="deck-hint">Выберите карту</p>
     </footer>
