@@ -948,30 +948,52 @@ $("copyLinkBtn").addEventListener("click", () => {
 // ---------- Выход из комнаты ----------
 // Просто покидаем комнату на этом устройстве. Сессия НЕ закрывается, даже если
 // выходит ведущий — её можно открыть снова из «Кабинета модератора» или по коду.
-let leaving = false;
-function leaveRoom() {
-    if (leaving) return;
-    leaving = true;
+
+// Сбрасываем локальное состояние комнаты (общая часть для выхода и «Назад»).
+function clearRoomSession() {
     try { localStorage.removeItem("sp_pid"); } catch (e) {}
     try { localStorage.removeItem("sp_role"); } catch (e) {}
     try { localStorage.removeItem(voteKey()); } catch (e) {}
     if (stompClient) { try { stompClient.deactivate(); } catch (e) {} }
-    // На главную, без ?room — попадаем на чистое лобби.
-    location.href = "/";
+    stompClient = null;
+    myId = null;
+    currentState = null;
+    clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+// Возврат в лобби БЕЗ перезагрузки страницы — это «действие назад», а не
+// навигация. Используется и кнопкой «Выход», и системной кнопкой «Назад».
+function returnToLobby() {
+    clearRoomSession();
+    $("room").classList.add("hidden");
+    $("connecting").classList.add("hidden");
+    $("lobby").classList.remove("hidden");
+    // Чистим URL от ?room, чтобы обновление страницы не перезашло в комнату.
+    if (location.search) history.replaceState(null, "", "/");
+    switchLobbyTab(joinMode ? "join" : "create");
+    $("primaryBtn").disabled = false;
 }
 
 $("leaveRoomBtn").addEventListener("click", () => {
     const ask = myRole === "MODERATOR"
         ? "Выйти из комнаты? Сессия останется активной — вы сможете вернуться из кабинета или по коду."
         : "Выйти из комнаты?";
-    if (confirm(ask)) leaveRoom();
+    if (!confirm(ask)) return;
+    // Снимаем запись истории «в комнате» (если есть) и возвращаемся в лобби.
+    if (history.state && history.state.inRoom) {
+        history.back();           // спровоцирует popstate → returnToLobby()
+    } else {
+        history.replaceState(null, "", "/");
+        returnToLobby();
+    }
 });
 
-// Кнопка «Назад» на телефоне: если мы в комнате — выходим из неё штатно,
-// а не перезаходим автоматически (иначе из комнаты не выбраться).
+// Системная кнопка «Назад»: если мы в комнате — это возврат в лобби (in-app),
+// без перезагрузки и без авто-перезахода в комнату.
 window.addEventListener("popstate", () => {
     const inRoom = !$("room").classList.contains("hidden");
-    if (inRoom) leaveRoom();
+    if (inRoom) returnToLobby();
 });
 
 function send(action, payload) {
