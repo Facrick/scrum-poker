@@ -1085,8 +1085,13 @@ html[data-theme="light"] .seat .card-slot.revealed {
 .deckbar.collapsed .deck-hint { display: none; }
 .deckbar.collapsed { padding-bottom: 10px; }
 
-/* Имена за столом: до двух строк, без грубого обрезания в одну */
-.seat .who { max-width: 100%; }
+/* Имена за столом: аватар над именем, имя по центру (до двух строк, на всю
+   ширину места — а не в узкой колонке рядом с аватаром, где выходило криво) */
+.seat .who {
+    flex-direction: column;
+    gap: 4px;
+    max-width: 100%;
+}
 .seat .pname {
     white-space: normal;
     text-align: center;
@@ -1096,6 +1101,7 @@ html[data-theme="light"] .seat .card-slot.revealed {
     -webkit-box-orient: vertical;
     overflow: hidden;
     line-height: 1.2;
+    max-width: 100%;
 }
 
 /* Шапка бэклога: действия в ряд + кнопка закрытия (видна на мобиле) */
