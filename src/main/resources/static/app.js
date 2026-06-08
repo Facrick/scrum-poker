@@ -17,6 +17,7 @@ let backlogOpen = false;    // видимость бэклог-панели
 let connectTimeout = null;  // таймаут экрана подключения
 let consensusAutoFixed = false; // авто-фиксация оценки при консенсусе (раз за раунд)
 let modPanelCollapsed = true;   // на мобиле панель управления свёрнута по умолчанию
+let uiLayers = [];              // стек открытых оверлеев (для системной кнопки «Назад»)
 const joinMode = !!roomId;
 const mqMobile = window.matchMedia("(max-width: 700px)");
 function isMobile() { return mqMobile.matches; }
@@ -926,21 +927,20 @@ $("startTimerBtn").addEventListener("click", () => {
 });
 $("stopTimerBtn").addEventListener("click", () => send("timer/stop", { participantId: myId }));
 
-// Бэклог
-$("toggleBacklogBtn").addEventListener("click", () => {
-    backlogOpen = !backlogOpen;
-    $("backlogPanel").classList.toggle("hidden", !backlogOpen);
-});
-$("backlogCloseBtn").addEventListener("click", () => {
-    backlogOpen = false;
-    $("backlogPanel").classList.add("hidden");
-});
+// Бэклог — оверлей, закрываемый кнопкой «Назад»
+function setBacklogOpen(open) {
+    backlogOpen = open;
+    $("backlogPanel").classList.toggle("hidden", !open);
+}
+function openBacklog()  { setBacklogOpen(true);  pushLayer("backlog", () => setBacklogOpen(false)); }
+function closeBacklog() { if (!consumeLayer("backlog")) setBacklogOpen(false); }
+$("toggleBacklogBtn").addEventListener("click", () => { backlogOpen ? closeBacklog() : openBacklog(); });
+$("backlogCloseBtn").addEventListener("click", closeBacklog);
 
-// Панель управления (⚙) — свернуть/развернуть на мобиле
-$("modToggleBtn").addEventListener("click", () => {
-    modPanelCollapsed = !modPanelCollapsed;
-    applyModPanel();
-});
+// Панель управления (⚙) — оверлей на мобиле, тоже закрывается «Назад»
+function openModMenu()  { modPanelCollapsed = false; applyModPanel(); pushLayer("modmenu", () => { modPanelCollapsed = true; applyModPanel(); }); }
+function closeModMenu() { if (!consumeLayer("modmenu")) { modPanelCollapsed = true; applyModPanel(); } }
+$("modToggleBtn").addEventListener("click", () => { modPanelCollapsed ? openModMenu() : closeModMenu(); });
 
 // Свернуть/развернуть раскладку оценки (колоду карт)
 $("deckCollapseBtn").addEventListener("click", () => {
@@ -989,6 +989,7 @@ function clearRoomSession() {
 // навигация. Используется и кнопкой «Выход», и системной кнопкой «Назад».
 function returnToLobby() {
     clearRoomSession();
+    uiLayers = [];
     $("room").classList.add("hidden");
     $("connecting").classList.add("hidden");
     $("lobby").classList.remove("hidden");
@@ -998,23 +999,41 @@ function returnToLobby() {
     $("primaryBtn").disabled = false;
 }
 
+// ---------- Менеджер оверлеев (бэклог, ⚙-панель) для кнопки «Назад» ----------
+// Каждый открытый оверлей добавляет запись в историю. Системная кнопка «Назад»
+// сначала закрывает верхний оверлей и только когда всё закрыто — выходит в лобби.
+function pushLayer(name, closeFn) {
+    uiLayers.push({ name, close: closeFn });
+    history.pushState({ inRoom: true, layer: name }, "", "?room=" + roomId);
+}
+// Закрыть оверлей по имени. Если это верхний слой — уходим через history.back()
+// (его закроет popstate), синхронно убирая запись истории. Возвращает true,
+// если слой найден и обработан.
+function consumeLayer(name) {
+    const idx = uiLayers.map(l => l.name).lastIndexOf(name);
+    if (idx === -1) return false;
+    if (idx === uiLayers.length - 1) { history.back(); return true; }
+    uiLayers[idx].close();
+    uiLayers.splice(idx, 1);
+    return true;
+}
+
 $("leaveRoomBtn").addEventListener("click", () => {
     const ask = myRole === "MODERATOR"
         ? "Выйти из комнаты? Сессия останется активной — вы сможете вернуться из кабинета или по коду."
         : "Выйти из комнаты?";
     if (!confirm(ask)) return;
-    // Снимаем запись истории «в комнате» (если есть) и возвращаемся в лобби.
-    if (history.state && history.state.inRoom) {
-        history.back();           // спровоцирует popstate → returnToLobby()
-    } else {
-        history.replaceState(null, "", "/");
-        returnToLobby();
-    }
+    returnToLobby();
 });
 
-// Системная кнопка «Назад»: если мы в комнате — это возврат в лобби (in-app),
-// без перезагрузки и без авто-перезахода в комнату.
+// Системная кнопка «Назад»:
+//   • если открыт оверлей — закрываем его (остаёмся в комнате);
+//   • иначе, если мы в комнате — возвращаемся в лобби (in-app, без перезагрузки).
 window.addEventListener("popstate", () => {
+    if (uiLayers.length > 0) {
+        uiLayers.pop().close();
+        return;
+    }
     const inRoom = !$("room").classList.contains("hidden");
     if (inRoom) returnToLobby();
 });
