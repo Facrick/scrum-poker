@@ -28,7 +28,7 @@ function switchLobbyTab(mode) {
     $("roomNameField").classList.toggle("hidden",  isJoin);
     $("roomCodeField").classList.toggle("hidden",  !isJoin);
     $("roleField").classList.toggle("hidden",      !isJoin);
-    $("primaryBtn").textContent = isJoin ? "Войти в комнату" : "Создать комнату";
+    $("primaryBtn").textContent = isJoin ? "Войти в сессию" : "Создать комнату";
     $("lobbyError").textContent = "";
 }
 
@@ -203,6 +203,11 @@ function onMe(body) {
     if (!joinMode && roomId) {
         history.replaceState(null, "", "?room=" + roomId);
     }
+    // Кладём отдельную запись истории «в комнате», чтобы системная кнопка «Назад»
+    // (особенно на телефоне) выводила из комнаты на лобби, а не из приложения.
+    if (!history.state || !history.state.inRoom) {
+        history.pushState({ inRoom: true }, "", "?room=" + roomId);
+    }
     showRoom(true);
     applyRole();
     if (currentState) render(currentState);
@@ -236,9 +241,22 @@ function applyRole() {
 
 // ---------- Рендер ----------
 function render(state) {
-    if (currentState && currentState.revealed && !state.revealed) myVote = null;
+    // Сброс раунда (карты прятались → снова скрыты): забываем локальный выбор.
+    if (currentState && currentState.revealed && !state.revealed) {
+        myVote = null;
+        try { localStorage.removeItem(voteKey()); } catch (e) {}
+    }
     currentState = state;
     if (!myId) return;
+
+    // Автозапоминание оценки: после F5/реконнекта подсвечиваем ранее выбранную
+    // карту, пока раунд не вскрыт и мы действительно проголосовали.
+    if (myVote == null && !state.revealed) {
+        const me = state.participants.find(p => p.id === myId);
+        let stored = null;
+        try { stored = localStorage.getItem(voteKey()); } catch (e) {}
+        if (stored && me && me.hasVoted) myVote = stored;
+    }
 
     $("roomName").textContent = state.roomName;
     const storyLabel = $("storyLabel");
@@ -276,6 +294,9 @@ function render(state) {
     renderBacklog(state);
     updateAsyncToggle(state);
 }
+
+// Ключ локального хранения выбранной карты (для автозапоминания при F5/реконнекте).
+function voteKey() { return "sp_vote_" + roomId; }
 
 // ---------- Async-доска (#3) ----------
 function asyncVotesKey() { return "sp_async_" + roomId; }
@@ -514,6 +535,7 @@ function renderDeck(state) {
         btn.title = card;
         btn.onclick = () => {
             myVote = card;
+            try { localStorage.setItem(voteKey(), card); } catch (e) {}
             send("vote", { participantId: myId, value: card });
         };
 
@@ -852,6 +874,35 @@ $("exportCsvBtn").addEventListener("click", exportCsv);
 $("copyLinkBtn").addEventListener("click", () => {
     const url = location.origin + "/?room=" + roomId;
     navigator.clipboard.writeText(url).then(() => toast("Ссылка скопирована — отправьте команде", true));
+});
+
+// ---------- Выход из комнаты ----------
+// Просто покидаем комнату на этом устройстве. Сессия НЕ закрывается, даже если
+// выходит ведущий — её можно открыть снова из «Кабинета модератора» или по коду.
+let leaving = false;
+function leaveRoom() {
+    if (leaving) return;
+    leaving = true;
+    try { localStorage.removeItem("sp_pid"); } catch (e) {}
+    try { localStorage.removeItem("sp_role"); } catch (e) {}
+    try { localStorage.removeItem(voteKey()); } catch (e) {}
+    if (stompClient) { try { stompClient.deactivate(); } catch (e) {} }
+    // На главную, без ?room — попадаем на чистое лобби.
+    location.href = "/";
+}
+
+$("leaveRoomBtn").addEventListener("click", () => {
+    const ask = myRole === "MODERATOR"
+        ? "Выйти из комнаты? Сессия останется активной — вы сможете вернуться из кабинета или по коду."
+        : "Выйти из комнаты?";
+    if (confirm(ask)) leaveRoom();
+});
+
+// Кнопка «Назад» на телефоне: если мы в комнате — выходим из неё штатно,
+// а не перезаходим автоматически (иначе из комнаты не выбраться).
+window.addEventListener("popstate", () => {
+    const inRoom = !$("room").classList.contains("hidden");
+    if (inRoom) leaveRoom();
 });
 
 function send(action, payload) {

@@ -1032,29 +1032,104 @@ html[data-theme="light"] .seat .card-slot.revealed {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.success { border-left-color: var(--success); }
 
+/* Иконка кнопки видна только когда текст скрыт (на узких экранах) */
+.btn-ico { display: none; line-height: 1; font-size: 14px; }
+
+/* Кнопка «Выход» из комнаты — нейтральная, с красным акцентом при наведении */
+#leaveRoomBtn:hover:not(:disabled) {
+    color: var(--danger);
+    border-color: rgba(248, 81, 73, .4);
+    background: var(--danger-l);
+}
+
 /* =====================================================
-   Responsive
+   Responsive  (планшет → телефон)
    ===================================================== */
 @media (max-width: 900px) {
-    .room-title   { max-width: 140px; }
+    .room-title    { max-width: 140px; }
     .topbar-center { display: none; }
 }
+
+/* ---------- Телефоны и узкие планшеты ---------- */
 @media (max-width: 700px) {
-    .room-body     { flex-direction: column; }
-    .backlog-panel { width: 100%; min-width: unset; border-left: none; border-top: 1px solid var(--border); max-height: 200px; }
-    .seat          { width: 84px; }
-    .seat .card-slot { width: 60px; height: 86px; }
-    .stage         { padding: 20px 12px; gap: 20px; }
-    .topbar        { padding: 0 12px; grid-template-columns: 1fr auto; }
+    /* Топбар: высота по контенту, действия переносятся, ничего не обрезается */
+    .topbar {
+        height: auto;
+        min-height: 48px;
+        grid-template-columns: 1fr auto;
+        gap: 6px 8px;
+        padding: 8px 12px;
+    }
     .topbar-center { display: none; }
-    .deckbar       { padding: 12px 12px 16px; }
-    .deck .pcard   { width: 50px; height: 74px; }
-    .results       { padding: 18px 16px; }
+    .topbar-right  { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .room-title    { max-width: 46vw; }
     .pill          { display: none; }
+    /* Крупнее тач-цель для кнопок верхней панели */
+    .topbar-right .btn { min-height: 34px; padding: 6px 10px; }
+    .theme-toggle  { width: 34px; height: 34px; }
+
+    /* Панель модератора: переносится по строкам, крупные тач-цели */
+    .mod-panel { padding: 8px 12px; }
+    .mod-row   { gap: 8px; }
+    .mod-input, .mod-select { height: 40px; font-size: 14px; }
+    .mod-row .btn { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+    .mod-input { flex: 1 1 100%; }
+    .custom-deck-wrap { flex: 1 1 100%; }
+    .mod-select { flex: 1 1 calc(50% - 4px); }
+    .mod-sep, .mod-spacer { display: none; }
+    #setStoryBtn, #startTimerBtn, #stopTimerBtn, #applyCustomDeckBtn { flex: 0 0 auto; }
+    /* Главные действия раунда — во всю ширину и заметные */
+    #revealBtn, #resetBtn { flex: 1 1 calc(50% - 4px); }
+    #asyncToggle { flex: 1 1 100%; }
+
+    /* Тело комнаты — в столбик, бэклог снизу выезжающей панелью */
+    .room-body     { flex-direction: column; }
+    .backlog-panel {
+        width: 100%; min-width: unset;
+        border-left: none; border-top: 1px solid var(--border);
+        max-height: 42vh;
+    }
+
+    /* Стол: компактные места, но читаемые */
+    .stage  { padding: 18px 12px 26px; gap: 18px; }
+    .stage::before { display: none; }
+    .table  { gap: 12px; }
+    .seat   { width: 72px; }
+    .seat .card-slot { width: 54px; height: 78px; }
+    /* Кик всегда виден (на тач нет hover) */
+    .seat .kick { display: flex; }
+
+    /* Колода снизу: карты крупнее для пальца, перенос строк */
+    .deckbar     { padding: 10px 10px calc(12px + env(safe-area-inset-bottom)); }
+    .deck        { gap: 8px; }
+    .deck .pcard { width: 54px; height: 78px; }
+    /* На тач hover-подъём не нужен — мешает, оставляем только выбранную */
+    .deck .pcard:hover:not(:disabled) { transform: none; }
+    .deck .pcard.selected { transform: translateY(-8px); }
+
+    .results { padding: 18px 16px; max-width: 100%; }
+    .consensus-hero-value { font-size: 46px; }
+    .results-actions .btn { flex: 1 1 auto; }
+
+    /* Async-доска: одна колонка */
+    .async-board { grid-template-columns: 1fr; padding: 12px; gap: 10px; }
+    .async-vote-row .av { min-width: 40px; height: 42px; }
 }
+
+/* ---------- Совсем узкие экраны ---------- */
 @media (max-width: 480px) {
-    .lobby         { padding: 20px 14px; }
-    .lobby-card    { padding: 22px 18px 20px; }
-    .room-title    { font-size: 13px; max-width: 100px; }
-    #copyLinkBtn .link-text { display: none; }
+    .lobby      { padding: 20px 14px; }
+    .lobby-card { padding: 22px 18px 20px; }
+    .room-title { font-size: 13px; max-width: 40vw; }
+    .topbar     { padding: 8px 10px; }
+    /* Прячем подписи второстепенных кнопок, показываем иконки — компактный набор */
+    #copyLinkBtn .link-text,
+    #leaveRoomBtn .link-text { display: none; }
+    #copyLinkBtn .btn-ico,
+    #leaveRoomBtn .btn-ico { display: inline-flex; }
+    .topbar-right .btn { padding: 6px 9px; }
+    .mod-select { flex: 1 1 100%; }
+    .seat   { width: 64px; }
+    .seat .card-slot { width: 50px; height: 72px; }
+    .deck .pcard { width: 50px; height: 72px; }
 }
