@@ -244,9 +244,13 @@ function applyRole() {
     $("deckBar").classList.toggle("hidden", myRole === "OBSERVER");
     // Приглашение и шестерёнка управления — только ведущему.
     // Бэклог участник видит в режиме «только чтение» (список задач + оценки):
-    // кнопку оставляем, а управление (импорт/удаление/активация) скрыто в renderBacklog.
+    // кнопку оставляем, а управление (импорт/удаление/активация/экспорт) скрыто.
     $("copyLinkBtn").classList.toggle("hidden", !isMod);
     $("modToggleBtn").classList.toggle("hidden", !isMod);
+    // Сразу прячем поле ввода и кнопку «Добавить списком» у не-ведущего,
+    // не дожидаясь первого рендера бэклога.
+    $("backlogImport").classList.toggle("hidden", !isMod);
+    $("exportCsvBtn").classList.toggle("hidden", !isMod);
     applyModPanel();
 }
 
