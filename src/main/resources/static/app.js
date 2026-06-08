@@ -319,6 +319,29 @@ function render(state) {
     }
     renderBacklog(state);
     updateAsyncToggle(state);
+    updateDeckAction(state);
+}
+
+// Кнопка «Вскрыть карты» / «Новый раунд» прямо на клавиатуре с оценками —
+// чтобы ведущему на мобиле не открывать панель ⚙ ради вскрытия. На десктопе
+// она скрыта (там есть панель управления); видимость задаётся CSS.
+function updateDeckAction(state) {
+    const btn = $("deckActionBtn");
+    const show = myRole === "MODERATOR" && !state.async;
+    btn.classList.toggle("hidden", !show);
+    if (!show) return;
+    if (!state.revealed) {
+        const anyVoted = state.participants.some(p => p.role !== "OBSERVER" && p.hasVoted);
+        btn.textContent = "Вскрыть карты";
+        btn.className = "btn btn-primary deck-action";
+        btn.disabled = !anyVoted;
+        btn.onclick = () => send("reveal", { participantId: myId });
+    } else {
+        btn.textContent = "Новый раунд";
+        btn.className = "btn btn-secondary deck-action";
+        btn.disabled = false;
+        btn.onclick = () => send("reset", { participantId: myId });
+    }
 }
 
 // Ключ локального хранения выбранной карты (для автозапоминания при F5/реконнекте).

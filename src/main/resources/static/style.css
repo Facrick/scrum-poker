@@ -1085,6 +1085,9 @@ html[data-theme="light"] .seat .card-slot.revealed {
 .deckbar.collapsed .deck-hint { display: none; }
 .deckbar.collapsed { padding-bottom: 10px; }
 
+/* Кнопка действия раунда на клавиатуре оценок — только на мобиле (ведущему) */
+.deck-action { display: none; width: 100%; max-width: 340px; }
+
 /* Имена за столом: аватар над именем, имя по центру (до двух строк, на всю
    ширину места — а не в узкой колонке рядом с аватаром, где выходило криво) */
 .seat .who {
@@ -1160,6 +1163,7 @@ html[data-theme="light"] .seat .card-slot.revealed {
     #modToggleBtn  { display: inline-flex; }
     .deck-collapse { display: inline-block; }
     .backlog-close { display: inline-flex; }
+    .deck-action:not(.hidden) { display: inline-flex; min-height: 44px; }
 
     /* Развёрнутая панель управления не должна занимать весь экран */
     .mod-panel:not(.collapsed) { max-height: 62vh; overflow-y: auto; }
