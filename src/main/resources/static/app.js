@@ -868,30 +868,23 @@ function exportCsv() {
     if (!currentState || !currentState.backlog || currentState.backlog.length === 0) {
         toast("Бэклог пуст"); return;
     }
+    const items = currentState.backlog;
+    const consensusOf = it => (it.votes && it.votes.length)
+        ? (new Set(it.votes.map(v => v.value)).size === 1 ? "Да" : "Нет") : "";
 
-    const rows = [["Задача", "Оценка"]];
-    currentState.backlog.forEach(item => rows.push([item.title, item.estimate || ""]));
+    const rows = [["№", "Задача", "Оценка", "Переголосований", "Консенсус", "Голоса"]];
+    items.forEach((it, i) => {
+        const votes = (it.votes || []).map(v => `${v.name}: ${v.value}`).join("; ");
+        rows.push([i + 1, it.title, it.estimate || "", it.revotes || 0, consensusOf(it), votes]);
+    });
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-
-    // Ширина столбцов
-    ws["!cols"] = [{ wch: 50 }, { wch: 12 }];
-
-    // Стиль заголовка (жирный)
-    ["A1", "B1"].forEach(cell => {
-        if (ws[cell]) ws[cell].s = { font: { bold: true } };
-    });
+    ws["!cols"] = [{ wch: 4 }, { wch: 44 }, { wch: 8 }, { wch: 16 }, { wch: 11 }, { wch: 50 }];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Бэклог");
-
-    const filename = (currentState.roomName || "scrum-poker") + ".xlsx";
-    XLSX.writeFile(wb, filename);
+    XLSX.writeFile(wb, (currentState.roomName || "scrum-poker") + ".xlsx");
     toast("Excel скачан", true);
-}
-
-function metric(label, value) {
-    return `<div class="metric"><div class="label">${label}</div><div class="value">${value}</div></div>`;
 }
 
 // ---------- Действия ----------
