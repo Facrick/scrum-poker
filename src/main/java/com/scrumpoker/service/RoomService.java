@@ -152,11 +152,21 @@ public class RoomService {
         }
     }
 
+    // Подпись значимых для ЛК полей последней записи истории по комнате.
+    // Снимок комнаты пишем всегда (для надёжности итогов), а метаданные истории —
+    // только когда что-то реально поменялось, экономя запись в БД при «шторме» голосов.
+    private final Map<String, String> lastHistorySig = new ConcurrentHashMap<>();
+
     private void persistSessionHistory(Room room) {
         int taskCount = room.getBacklog().size();
         int estimatedCount = (int) room.getBacklog().stream()
                 .filter(i -> i.getEstimate() != null)
                 .count();
+        String sig = room.getName() + "|" + room.getParticipants().size()
+                + "|" + taskCount + "|" + estimatedCount;
+        // Голоса/таймер/вскрытие не меняют эти поля — пропускаем лишнюю запись.
+        if (sig.equals(lastHistorySig.get(room.getId()))) return;
+
         sessionHistoryRepository.upsert(new SessionHistory(
                 room.getId(),
                 room.getOwnerUserId(),
@@ -167,6 +177,7 @@ public class RoomService {
                 room.getCreatedAt(),
                 room.getLastActivityAt()
         ));
+        lastHistorySig.put(room.getId(), sig);
     }
 
     /** Число подряд идущих сбоев записи в БД (0 — последняя запись успешна). */
@@ -232,6 +243,7 @@ public class RoomService {
     public void removeEmptyRoom(Room room) {
         rooms.remove(room.getId());
         roomRepository.delete(room.getId());
+        lastHistorySig.remove(room.getId());
     }
 
     /**
@@ -249,6 +261,7 @@ public class RoomService {
         rooms.values().removeIf(room -> {
             if (room.getLastActivityAt().isBefore(cutoff)) {
                 if (room.getOwnerUserId() == null) snapshotsToDelete.add(room.getId());
+                lastHistorySig.remove(room.getId());
                 evicted[0]++;
                 return true; // из памяти убираем в любом случае
             }

@@ -24,13 +24,24 @@ class RoomServiceTest {
 
     private RoomService service;
     private RoomRepository roomRepo;
+    private SessionHistoryRepository historyRepo;
 
     @BeforeEach
     void setUp() {
         roomRepo = mock(RoomRepository.class);
-        service = new RoomService(new ObjectMapper(), roomRepo,
-                mock(SessionHistoryRepository.class), new RateLimiter());
+        historyRepo = mock(SessionHistoryRepository.class);
+        service = new RoomService(new ObjectMapper(), roomRepo, historyRepo, new RateLimiter());
         ReflectionTestUtils.setField(service, "roomTtlHours", 8);
+    }
+
+    @Test
+    @DisplayName("История ЛК не переписывается, если значимые поля не изменились")
+    void sessionHistoryWriteDedupedWhenUnchanged() {
+        Room room = service.createRoom("S", Deck.FIBONACCI, "owner-1");
+        service.persistRoom(room);
+        service.persistRoom(room); // то же состояние — лишней записи быть не должно
+        org.mockito.Mockito.verify(historyRepo, org.mockito.Mockito.times(1))
+                .upsert(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
