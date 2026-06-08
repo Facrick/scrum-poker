@@ -83,6 +83,16 @@ class RoomServiceTest {
     }
 
     @Test
+    @DisplayName("Поздний участник не становится ведущим, даже если ведущий офлайн")
+    void laterJoinerIsNotAutoPromotedWhenAlone() {
+        Room room = service.createRoom("Sprint", Deck.FIBONACCI);
+        Participant mod = service.join(room, "Alice", Participant.Role.PLAYER); // создатель = ведущий
+        mod.setOnline(false);                                                   // ведущий ушёл офлайн
+        Participant bob = service.join(room, "Bob", Participant.Role.PLAYER);
+        assertThat(bob.getRole()).isEqualTo(Participant.Role.PLAYER);           // авто-передачи прав нет
+    }
+
+    @Test
     @DisplayName("Вход отклоняется при заполненной комнате")
     void joinIsRejectedWhenRoomIsFull() {
         Room room = service.createRoom("Sprint", Deck.FIBONACCI);

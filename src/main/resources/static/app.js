@@ -533,6 +533,20 @@ function renderTable(state) {
             kick.title = "Удалить";
             kick.onclick = () => send("kick", { participantId: myId, targetId: p.id });
             slot.appendChild(kick);
+
+            // Передать права ведущего (вручную) — кроме наблюдателей и тех, кто уже ведущий.
+            if (p.role !== "OBSERVER" && p.role !== "MODERATOR") {
+                const crown = document.createElement("button");
+                crown.className = "promote";
+                crown.textContent = "♛";
+                crown.title = "Сделать ведущим";
+                crown.onclick = () => {
+                    if (confirm(`Сделать «${p.name}» ведущим?`)) {
+                        send("promote", { participantId: myId, targetId: p.id });
+                    }
+                };
+                slot.appendChild(crown);
+            }
         }
 
         seat.append(slot, who);

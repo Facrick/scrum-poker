@@ -116,9 +116,11 @@ public class RoomService {
             throw new IllegalStateException("Комната заполнена (максимум " + MAX_PARTICIPANTS + ")");
         }
         String id = generateId();
-        // Первый вошедший (или единственный онлайн) становится модератором.
-        boolean anyOnline = room.getParticipants().stream().anyMatch(Participant::isOnline);
-        Participant.Role effectiveRole = !anyOnline ? Participant.Role.MODERATOR : role;
+        // Ведущим автоматически становится только САМЫЙ первый участник (создатель
+        // комнаты). Остальные входят в запрошенной роли — даже если ведущего нет
+        // онлайн. Права ведущего передаются дальше только вручную.
+        boolean firstEver = room.getParticipants().isEmpty();
+        Participant.Role effectiveRole = firstEver ? Participant.Role.MODERATOR : role;
         Participant p = new Participant(id, name, effectiveRole);
         room.addParticipant(p);
         return p;

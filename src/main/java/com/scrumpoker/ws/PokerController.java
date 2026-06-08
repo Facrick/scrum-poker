@@ -393,6 +393,18 @@ public class PokerController {
         broadcast(room);
     }
 
+    /** Ведущий вручную передаёт/выдаёт права ведущего другому участнику. */
+    @MessageMapping("/room/{roomId}/promote")
+    public void promote(@DestinationVariable String roomId, @Payload Messages.PromoteMessage msg,
+                        SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.targetId() == null) return;
+        Participant target = room.getParticipant(msg.targetId());
+        if (target == null || target.getRole() == Participant.Role.OBSERVER) return;
+        target.setRole(Participant.Role.MODERATOR);
+        broadcast(room);
+    }
+
     @MessageMapping("/room/{roomId}/kick")
     public void kick(@DestinationVariable String roomId, @Payload Messages.KickMessage msg,
                      SimpMessageHeaderAccessor headers) {

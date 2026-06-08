@@ -627,6 +627,20 @@ html[data-theme="light"] .seat .card-slot.revealed {
 .seat:hover .kick { display: flex; }
 .seat .kick:hover { background: var(--danger-l); color: var(--danger); border-color: var(--danger); }
 
+/* Кнопка «сделать ведущим» — зеркало kick, слева сверху, золотой акцент */
+.seat .promote {
+    position: absolute; top: -6px; left: -6px;
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface-3); color: var(--muted);
+    font-size: 11px; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    padding: 0; transition: background .1s, color .1s;
+    z-index: 2;
+}
+.seat:hover .promote { display: flex; }
+.seat .promote:hover { background: rgba(210, 153, 34, .15); color: var(--warn); border-color: var(--warn); }
+
 /* Corner pips on revealed/deck cards */
 .pcard-corner {
     position: absolute;
@@ -1164,8 +1178,9 @@ html[data-theme="light"] .seat .card-slot.revealed {
     .table  { gap: 12px; }
     .seat   { width: 72px; }
     .seat .card-slot { width: 54px; height: 78px; }
-    /* Кик всегда виден (на тач нет hover) */
-    .seat .kick { display: flex; }
+    /* Кик и «сделать ведущим» всегда видны (на тач нет hover) */
+    .seat .kick,
+    .seat .promote { display: flex; }
 
     /* Колода снизу: карты крупнее для пальца, перенос строк */
     .deckbar     { padding: 10px 10px calc(12px + env(safe-area-inset-bottom)); }
