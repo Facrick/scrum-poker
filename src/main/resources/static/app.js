@@ -242,9 +242,9 @@ function applyRole() {
     const isMod = myRole === "MODERATOR";
     $("moderatorPanel").classList.toggle("hidden", !isMod);
     $("deckBar").classList.toggle("hidden", myRole === "OBSERVER");
-    // Управление бэклогом, приглашение и шестерёнка — только ведущему.
-    // У участника верхняя панель остаётся минимальной (Выход + тема).
-    $("toggleBacklogBtn").classList.toggle("hidden", !isMod);
+    // Приглашение и шестерёнка управления — только ведущему.
+    // Бэклог участник видит в режиме «только чтение» (список задач + оценки):
+    // кнопку оставляем, а управление (импорт/удаление/активация) скрыто в renderBacklog.
     $("copyLinkBtn").classList.toggle("hidden", !isMod);
     $("modToggleBtn").classList.toggle("hidden", !isMod);
     applyModPanel();
@@ -734,8 +734,9 @@ function renderBacklog(state) {
     }
     panel.classList.toggle("hidden", !backlogOpen);
 
-    // Блок импорта списком — только ведущему
+    // Импорт списком и экспорт — только ведущему; участник видит список «только чтение»
     $("backlogImport").classList.toggle("hidden", myRole !== "MODERATOR");
+    $("exportCsvBtn").classList.toggle("hidden", myRole !== "MODERATOR");
 
     renderSessionStats(state);
 
