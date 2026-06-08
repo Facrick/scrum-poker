@@ -36,7 +36,7 @@
         </div>
 
         <label class="field">
-            <span>Имя</span>
+            <span>Имя пользователя</span>
             <input id="nameInput" type="text" maxlength="40"
                    placeholder="Например, Алиса" autocomplete="new-password">
         </label>
@@ -85,7 +85,7 @@
     <header class="topbar">
         <div class="topbar-left">
             <span class="topbar-suit">♠</span>
-            <h1 id="roomName" class="room-title">Комната</h1>
+            <h1 id="roomName" class="room-title" title="Комната">Комната</h1>
         </div>
 
         <div class="topbar-center">
@@ -108,12 +108,11 @@
         </div>
     </header>
 
+    <!-- Текущая задача (видна на мобиле, где topbar-center скрыт) -->
+    <div id="storyBar" class="story-bar"></div>
+
     <section id="moderatorPanel" class="mod-panel hidden">
         <div class="mod-row">
-            <input id="storyInput" type="text" class="mod-input"
-                   placeholder="Название задачи" autocomplete="off">
-            <button id="setStoryBtn" class="btn btn-ghost btn-sm">Задать</button>
-            <span class="mod-sep"></span>
             <select id="deckChange" class="mod-select">
                 <option value="FIBONACCI">Фибоначчи</option>
                 <option value="POWERS_OF_TWO">Степени двойки</option>

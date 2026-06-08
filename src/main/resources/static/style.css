@@ -1088,6 +1088,22 @@ html[data-theme="light"] .seat .card-slot.revealed {
 /* Кнопка действия раунда на клавиатуре оценок — только на мобиле (ведущему) */
 .deck-action { display: none; width: 100%; max-width: 340px; }
 
+/* Строка текущей задачи — видна на мобиле (где topbar-center скрыт) */
+.story-bar {
+    display: none;
+    padding: 8px 14px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+.story-bar.active { color: var(--text); font-weight: 600; }
+
+/* Название комнаты кликабельно для ведущего (переименование «в моменте») */
+.room-title.editable { cursor: pointer; }
+.room-title.editable:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+
 /* Имена за столом: аватар над именем, имя по центру (до двух строк, на всю
    ширину места — а не в узкой колонке рядом с аватаром, где выходило криво) */
 .seat .who {
@@ -1164,6 +1180,7 @@ html[data-theme="light"] .seat .card-slot.revealed {
     .deck-collapse { display: inline-block; }
     .backlog-close { display: inline-flex; }
     .deck-action:not(.hidden) { display: inline-flex; min-height: 44px; }
+    .story-bar     { display: block; }
 
     /* Развёрнутая панель управления не должна занимать весь экран */
     .mod-panel:not(.collapsed) { max-height: 62vh; overflow-y: auto; }

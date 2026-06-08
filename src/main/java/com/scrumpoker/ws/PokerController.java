@@ -256,6 +256,19 @@ public class PokerController {
         broadcast(room);
     }
 
+    /** Ведущий переименовывает сессию прямо во время её проведения. */
+    @MessageMapping("/room/{roomId}/rename")
+    public void renameRoom(@DestinationVariable String roomId, @Payload Messages.RenameRoomMessage msg,
+                           SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.name() == null) return;
+        String name = msg.name().strip();
+        if (name.isEmpty()) return;
+        if (name.length() > 80) name = name.substring(0, 80);
+        room.setName(name);
+        broadcast(room); // persistRoom внутри синхронизирует имя в истории сессий
+    }
+
     @MessageMapping("/room/{roomId}/deck")
     public void setDeck(@DestinationVariable String roomId, @Payload Messages.SetDeckMessage msg,
                         SimpMessageHeaderAccessor headers) {

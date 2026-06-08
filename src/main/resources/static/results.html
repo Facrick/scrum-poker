@@ -25,6 +25,15 @@
         .res-row .est { font-weight: 800; color: var(--success); background: var(--success-l); padding: .15rem .6rem; border-radius: 6px; white-space: nowrap; }
         .res-row .est.none { color: var(--text-muted); background: var(--bg); font-weight: 600; }
         .res-row .rev { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
+        .res-row .cons { font-size: .72rem; white-space: nowrap; padding: .1rem .45rem; border-radius: 999px; }
+        .res-row .cons.yes { color: var(--success); background: var(--success-l); }
+        .res-row .cons.no { color: var(--warn); background: rgba(210,153,34,.12); }
+        .res-votes { padding: .2rem 1.1rem .7rem 2.6rem; display: flex; flex-wrap: wrap; gap: .35rem; }
+        .res-vote { font-size: .74rem; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: .1rem .5rem; }
+        .res-vote b { color: var(--text); }
+        .res-block { border-bottom: 1px solid var(--border); }
+        .res-block:last-child { border-bottom: none; }
+        .res-block .res-row { border-bottom: none; }
         .res-empty, .res-error { padding: 3rem 1.5rem; text-align: center; color: var(--text-muted); }
         .btn-copy { background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: .45rem .9rem; font-size: .85rem; color: var(--text-muted); cursor: pointer; }
         .btn-copy:hover { border-color: var(--accent); color: var(--text); }
@@ -37,8 +46,9 @@
 <div class="res-layout">
     <nav class="res-topbar">
         <a class="res-brand" href="/"><span class="suit">♠</span> Scrum Poker</a>
-        <div style="display:flex;gap:.5rem;align-items:center">
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
             <button class="theme-toggle" type="button">☀️</button>
+            <button class="btn-copy" id="csvBtn">Скачать CSV</button>
             <button class="btn-copy" id="copyBtn">Скопировать ссылку</button>
         </div>
     </nav>

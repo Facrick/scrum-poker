@@ -13,20 +13,9 @@ let _user = null; // профиль, нужен кнопке «Новая сес
         return;
     }
     _user = user;
-
-    const card = document.getElementById('profileCard');
-    const avatarEl = user.avatarUrl
-        ? `<img class="profile-avatar" src="${esc(user.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
-        : `<div class="profile-avatar-placeholder">${esc((user.displayName || '?')[0].toUpperCase())}</div>`;
-
-    card.innerHTML = `
-        ${avatarEl}
-        <div class="profile-info">
-            <div class="profile-name">${esc(user.displayName || 'Модератор')}</div>
-            ${user.email ? `<div class="profile-email">${esc(user.email)}</div>` : ''}
-            <span class="profile-provider">${esc(user.provider)}</span>
-        </div>
-    `;
+    renderProfileCard();
+    // Сохраняем имя для лобби/комнат, чтобы оно сразу подхватывалось.
+    if (user.displayName) localStorage.setItem('sp_name', user.displayName);
 
     // ── Выйти ─────────────────────────────────────────────────────
     document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -81,7 +70,7 @@ function startSessionPolling() {
 
 function openCreateModal() {
     const overlay = document.getElementById('createModal');
-    document.getElementById('createName').value = 'Новая сессия';
+    document.getElementById('createName').value = '';   // поле названия всегда пустое
     document.getElementById('createTasks').value = '';
     overlay.classList.remove('hidden');
     setTimeout(() => document.getElementById('createName').focus(), 0);
@@ -91,7 +80,8 @@ function setupCreateModal() {
     const overlay = document.getElementById('createModal');
     const close = () => overlay.classList.add('hidden');
     document.getElementById('createCancel').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    // Клик мимо окна НЕ закрывает модалку (чтобы случайно не потерять введённые
+    // задачи). Закрытие — только кнопкой «Отмена» или клавишей Esc.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !overlay.classList.contains('hidden')) close();
     });
@@ -231,6 +221,47 @@ function sessionCard(s) {
 }
 
 function currentUser() { return _user || { displayName: 'Модератор' }; }
+
+// Профиль с кнопкой смены отображаемого имени (для входа через Google/GitHub).
+function renderProfileCard() {
+    const user = _user || {};
+    const card = document.getElementById('profileCard');
+    const avatarEl = user.avatarUrl
+        ? `<img class="profile-avatar" src="${esc(user.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
+        : `<div class="profile-avatar-placeholder">${esc((user.displayName || '?')[0].toUpperCase())}</div>`;
+    card.innerHTML = `
+        ${avatarEl}
+        <div class="profile-info">
+            <div class="profile-name">
+                ${esc(user.displayName || 'Модератор')}
+                <button class="profile-name-edit" id="editNameBtn" title="Изменить имя">✎</button>
+            </div>
+            ${user.email ? `<div class="profile-email">${esc(user.email)}</div>` : ''}
+            <span class="profile-provider">${esc(user.provider)}</span>
+        </div>
+    `;
+    document.getElementById('editNameBtn').addEventListener('click', editDisplayName);
+}
+
+async function editDisplayName() {
+    const name = prompt('Как вас показывать в комнатах?', (_user && _user.displayName) || '');
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (!trimmed) { toast('Имя не может быть пустым'); return; }
+    if (trimmed === (_user && _user.displayName)) return;
+    try {
+        const res = await spAuth.fetch('/api/me', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ displayName: trimmed })
+        });
+        if (!res.ok) throw new Error();
+        _user = await res.json();
+        renderProfileCard();
+        localStorage.setItem('sp_name', _user.displayName || trimmed);
+        toast('Имя обновлено', true);
+    } catch { toast('Не удалось изменить имя'); }
+}
 
 async function renameSession(s) {
     const name = prompt('Новое название сессии:', s.roomName || '');

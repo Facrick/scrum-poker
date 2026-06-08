@@ -49,6 +49,7 @@ public class AccountController {
 
     record CreateRoomRequest(String name, String deck, List<String> tasks) {}
     record RenameSessionRequest(String name) {}
+    record UpdateProfileRequest(String displayName) {}
 
     // ── GET /api/me ───────────────────────────────────────────────
 
@@ -56,6 +57,24 @@ public class AccountController {
     public ResponseEntity<UserResponse> me(@AuthenticationPrincipal OAuth2User oauthUser) {
         if (oauthUser == null) return ResponseEntity.status(401).build();
         String userId = oauthUser.getAttribute("_userId");
+        return userRepository.findById(userId)
+                .map(u -> ResponseEntity.ok(new UserResponse(
+                        u.id(), u.displayName(), u.email(), u.avatarUrl(), u.provider())))
+                .orElseGet(() -> ResponseEntity.status(401).build());
+    }
+
+    // ── PATCH /api/me — сменить отображаемое имя ─────────────────
+
+    @PatchMapping
+    public ResponseEntity<UserResponse> updateMe(
+            @AuthenticationPrincipal OAuth2User oauthUser,
+            @RequestBody(required = false) UpdateProfileRequest req) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        String name = (req != null && req.displayName() != null) ? req.displayName().strip() : "";
+        if (name.isEmpty()) return ResponseEntity.badRequest().build();
+        if (name.length() > 40) name = name.substring(0, 40);
+        userRepository.updateDisplayName(userId, name);
         return userRepository.findById(userId)
                 .map(u -> ResponseEntity.ok(new UserResponse(
                         u.id(), u.displayName(), u.email(), u.avatarUrl(), u.provider())))
