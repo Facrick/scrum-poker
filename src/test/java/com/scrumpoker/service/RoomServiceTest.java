@@ -23,12 +23,34 @@ import static org.mockito.Mockito.mock;
 class RoomServiceTest {
 
     private RoomService service;
+    private RoomRepository roomRepo;
 
     @BeforeEach
     void setUp() {
-        service = new RoomService(new ObjectMapper(), mock(RoomRepository.class),
+        roomRepo = mock(RoomRepository.class);
+        service = new RoomService(new ObjectMapper(), roomRepo,
                 mock(SessionHistoryRepository.class), new RateLimiter());
         ReflectionTestUtils.setField(service, "roomTtlHours", 8);
+    }
+
+    @Test
+    @DisplayName("TTL-очистка хранит снимок владельческой сессии, анонимный — удаляет")
+    void evictionKeepsOwnedSessionResults() {
+        Room owned = service.createRoom("Owned", Deck.FIBONACCI, "owner-1");
+        Room anon  = service.createRoom("Anon", Deck.FIBONACCI);
+        java.time.Instant stale = java.time.Instant.now().minus(9, java.time.temporal.ChronoUnit.HOURS);
+        ReflectionTestUtils.setField(owned, "lastActivityAt", stale);
+        ReflectionTestUtils.setField(anon, "lastActivityAt", stale);
+
+        service.evictStaleRooms();
+
+        // Обе выгружены из памяти…
+        assertThat(service.getRoom(owned.getId())).isEmpty();
+        assertThat(service.getRoom(anon.getId())).isEmpty();
+        // …но снимок удалён только у анонимной комнаты.
+        org.mockito.Mockito.verify(roomRepo).deleteAll(
+                org.mockito.ArgumentMatchers.argThat(ids ->
+                        ids.contains(anon.getId()) && !ids.contains(owned.getId())));
     }
 
     @Test

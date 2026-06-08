@@ -239,17 +239,25 @@ public class RoomService {
     @Scheduled(fixedDelay = 30 * 60 * 1000)
     public void evictStaleRooms() {
         Instant cutoff = Instant.now().minus(roomTtlHours, ChronoUnit.HOURS);
-        List<String> toRemove = new ArrayList<>();
+        // Снимки удаляем ТОЛЬКО для анонимных комнат. Сессии модераторов (с
+        // ownerUserId) сохраняют снимок как постоянный архив итогов — чтобы
+        // отчёт XLS и публичную страницу итогов можно было открыть когда угодно.
+        List<String> snapshotsToDelete = new ArrayList<>();
+        int[] evicted = {0};
         rooms.values().removeIf(room -> {
             if (room.getLastActivityAt().isBefore(cutoff)) {
-                toRemove.add(room.getId());
-                return true;
+                if (room.getOwnerUserId() == null) snapshotsToDelete.add(room.getId());
+                evicted[0]++;
+                return true; // из памяти убираем в любом случае
             }
             return false;
         });
-        if (!toRemove.isEmpty()) {
-            roomRepository.deleteAll(toRemove);
-            log.info("Удалено {} устаревших комнат", toRemove.size());
+        if (!snapshotsToDelete.isEmpty()) {
+            roomRepository.deleteAll(snapshotsToDelete);
+        }
+        if (evicted[0] > 0) {
+            log.info("Выгружено из памяти {} комнат (снимков удалено: {})",
+                    evicted[0], snapshotsToDelete.size());
         }
         // Подчищаем устаревшие окна rate-limiter, чтобы карта не росла.
         rateLimiter.evictOlderThan(60 * 60 * 1000L);
