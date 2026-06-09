@@ -12,8 +12,7 @@ import java.util.List;
 
 /**
  * Публичная read-only сводка итогов сессии (шаринг-ссылка).
- * Доступна без авторизации по id комнаты — отдаёт только агрегат
- * (задачи + оценки + число переголосований), без имён голосовавших.
+ * Доступна без авторизации по id комнаты.
  */
 @RestController
 @RequestMapping("/api/public")
@@ -25,29 +24,20 @@ public class PublicController {
         this.roomService = roomService;
     }
 
-    public record PublicVote(String name, String value) {}
-    public record PublicItem(String title, String estimate, int revotes,
-                             boolean consensus, List<PublicVote> votes) {}
+    public record PublicItem(String title, String estimate) {}
     public record PublicSummary(String roomName, int taskCount, int estimatedCount,
                                 List<PublicItem> items) {}
 
     @GetMapping("/sessions/{roomId}")
     public ResponseEntity<PublicSummary> summary(@PathVariable String roomId) {
-        return roomService.loadAnyRoom(roomId)
+        return roomService.getRoom(roomId)
                 .map(room -> {
                     List<BacklogItem> backlog = room.getBacklog();
                     List<PublicItem> items = backlog.stream()
-                            .map(i -> {
-                                List<PublicVote> votes = i.getVotes().stream()
-                                        .map(v -> new PublicVote(v.name(), v.value()))
-                                        .toList();
-                                boolean consensus = !votes.isEmpty()
-                                        && votes.stream().map(PublicVote::value).distinct().count() == 1;
-                                return new PublicItem(i.getTitle(), i.getEstimate(),
-                                        i.getRevotes(), consensus, votes);
-                            })
+                            .map(i -> new PublicItem(i.getTitle(), i.getEstimate()))
                             .toList();
-                    int estimated = (int) backlog.stream().filter(i -> i.getEstimate() != null).count();
+                    int estimated = (int) backlog.stream()
+                            .filter(i -> i.getEstimate() != null).count();
                     return ResponseEntity.ok(new PublicSummary(
                             room.getName(), backlog.size(), estimated, items));
                 })
