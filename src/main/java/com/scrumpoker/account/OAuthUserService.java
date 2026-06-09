@@ -32,7 +32,7 @@ public class OAuthUserService extends DefaultOAuth2UserService {
      * Метод пакетной видимости специально для модульных тестов —
      * позволяет тестировать бизнес-логику без HTTP-вызова к провайдеру.
      */
-    OAuth2User processUser(String provider, OAuth2User raw) {
+    public OAuth2User processUser(String provider, OAuth2User raw) {
         String providerId, email, displayName, avatarUrl, nameAttributeKey;
 
         if ("github".equals(provider)) {

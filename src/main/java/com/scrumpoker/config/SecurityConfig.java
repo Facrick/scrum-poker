@@ -9,10 +9,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
-import org.springframework.security.oauth2.client.userinfo.DefaultOidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.oidc.OidcIdToken;
-import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -20,7 +17,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -62,9 +58,11 @@ public class SecurityConfig {
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
                 .userInfoEndpoint(ui -> ui
-                    // GitHub (plain OAuth2)
+                    // GitHub (plain OAuth2) — наш сервис вызывается напрямую
                     .userService(oauthUserService)
-                    // Google (OIDC — openid scope) — нужен отдельный сервис
+                    // Google (OIDC, openid scope) — нужна отдельная обёртка,
+                    // иначе DefaultOidcUserService вызывается в обход нашей логики
+                    // и _userId не попадает в principal → jwtService.issue(null) → 500
                     .oidcUserService(buildOidcUserService())
                 )
                 .successHandler((req, res, auth) -> {
@@ -90,35 +88,25 @@ public class SecurityConfig {
     }
 
     /**
-     * OIDC-обёртка для Google: делегирует загрузку пользователя стандартному
-     * {@link DefaultOidcUserService}, затем вызывает нашу логику upsert'а и
-     * возвращает {@link OidcUser}, у которого {@code getAttribute("_userId")}
-     * работает корректно.
-     *
-     * Без этой обёртки Spring Security использует {@link DefaultOidcUserService}
-     * напрямую, минуя наш {@link OAuthUserService}, и {@code _userId} не ставится
-     * → {@code jwtService.issue(null)} бросает исключение → 500.
+     * OIDC-обёртка: расширяем {@link OidcUserService}, вызываем {@code super.loadUser()}
+     * для получения стандартного OidcUser, затем обогащаем его через нашу логику upsert.
      */
     private OidcUserService buildOidcUserService() {
-        DefaultOidcUserService delegate = new DefaultOidcUserService();
         return new OidcUserService() {
             @Override
             public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
-                OidcUser oidcUser = delegate.loadUser(request);
-                // Получаем _userId через ту же логику, что и для GitHub
+                OidcUser oidcUser = super.loadUser(request);
+                // Вызываем processUser для upsert пользователя и получения _userId
                 OAuth2User enriched = oauthUserService.processUser("google", oidcUser);
                 String userId = enriched.getAttribute("_userId");
-                // Оборачиваем в OidcUser, добавляя _userId в атрибуты
+                // Возвращаем OidcUser с _userId в атрибутах
                 return new EnrichedOidcUser(oidcUser, userId);
             }
         };
     }
 
-    /**
-     * {@link OidcUser}, который делегирует всё оригинальному пользователю,
-     * но добавляет {@code _userId} в {@link #getAttributes()}.
-     */
-    private static class EnrichedOidcUser extends DefaultOidcUser {
+    /** DefaultOidcUser с дополнительным атрибутом _userId в getAttributes(). */
+    private static final class EnrichedOidcUser extends DefaultOidcUser {
         private final Map<String, Object> enrichedAttrs;
 
         EnrichedOidcUser(OidcUser original, String userId) {
