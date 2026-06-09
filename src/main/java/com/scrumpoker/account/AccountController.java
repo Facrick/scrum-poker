@@ -200,7 +200,9 @@ public class AccountController {
                 .map(String::trim)
                 .forEach(title -> room.getBacklog().add(new BacklogItem(title)));
         }
-        roomService.persistRoom(room);
+        // Немедленная запись при наличии задач — чтобы не потерять их при рестарте сервера.
+        if (!room.getBacklog().isEmpty()) roomService.persistRoomNow(room);
+        else roomService.persistRoom(room);
         return ResponseEntity.ok(Map.of("roomId", room.getId()));
     }
 }

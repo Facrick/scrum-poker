@@ -99,7 +99,19 @@ public class RoomService {
     }
 
     public Optional<Room> getRoom(String id) {
-        return Optional.ofNullable(rooms.get(id));
+        Room room = rooms.get(id);
+        if (room != null) return Optional.of(room);
+        return roomRepository.findById(id).flatMap(json -> {
+            try {
+                RoomSnapshot snap = objectMapper.readValue(json, RoomSnapshot.class);
+                Room loaded = snap.toRoom();
+                rooms.put(loaded.getId(), loaded);
+                return Optional.of(loaded);
+            } catch (Exception e) {
+                log.warn("Не удалось восстановить комнату {} из БД: {}", id, e.getMessage());
+                return Optional.empty();
+            }
+        });
     }
 
     /** Добавить участника. Бросает, если комната переполнена. */
@@ -137,8 +149,8 @@ public class RoomService {
         if (prev != null) prev.cancel(false);
     }
 
-    /** Немедленная запись — используется при эвикции и остановке сервера. */
-    private void persistRoomNow(Room room) {
+    /** Немедленная запись — используется при эвикции, остановке сервера и создании с задачами. */
+    public void persistRoomNow(Room room) {
         ScheduledFuture<?> pending = pendingPersist.remove(room.getId());
         if (pending != null) pending.cancel(false);
         doPersist(room);
