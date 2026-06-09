@@ -1,14 +1,17 @@
 package com.scrumpoker.account;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scrumpoker.model.BacklogItem;
 import com.scrumpoker.model.Deck;
 import com.scrumpoker.model.Room;
+import com.scrumpoker.persistence.RoomRepository;
+import com.scrumpoker.persistence.RoomSnapshot;
 import com.scrumpoker.service.RoomService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,13 +23,19 @@ public class AccountController {
     private final UserRepository userRepository;
     private final SessionHistoryRepository sessionHistoryRepository;
     private final RoomService roomService;
+    private final RoomRepository roomRepository;
+    private final ObjectMapper objectMapper;
 
     public AccountController(UserRepository userRepository,
                              SessionHistoryRepository sessionHistoryRepository,
-                             RoomService roomService) {
+                             RoomService roomService,
+                             RoomRepository roomRepository,
+                             ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.sessionHistoryRepository = sessionHistoryRepository;
         this.roomService = roomService;
+        this.roomRepository = roomRepository;
+        this.objectMapper = objectMapper;
     }
 
     public record UserResponse(
@@ -45,29 +54,47 @@ public class AccountController {
             int estimatedCount,
             String startedAt,
             String lastActiveAt,
-            boolean alive          // комната ещё живёт в памяти сервера
+            boolean alive
     ) {}
 
     record CreateRoomRequest(String name, String deck, List<String> tasks) {}
+    record UpdateProfileRequest(String displayName) {}
+    record RenameSessionRequest(String name) {}
 
-    // ── GET /api/me ───────────────────────────────────────────────
-
+    // GET /api/me
     @GetMapping
     public ResponseEntity<UserResponse> me(@AuthenticationPrincipal OAuth2User oauthUser) {
         if (oauthUser == null) return ResponseEntity.status(401).build();
         String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return ResponseEntity.status(401).build();
         return userRepository.findById(userId)
                 .map(u -> ResponseEntity.ok(new UserResponse(
                         u.id(), u.displayName(), u.email(), u.avatarUrl(), u.provider())))
                 .orElseGet(() -> ResponseEntity.status(401).build());
     }
 
-    // ── GET /api/me/sessions ──────────────────────────────────────
+    // PATCH /api/me
+    @PatchMapping
+    public ResponseEntity<UserResponse> updateProfile(@AuthenticationPrincipal OAuth2User oauthUser,
+                                                       @RequestBody UpdateProfileRequest req) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return ResponseEntity.status(401).build();
+        String name = req.displayName() == null ? "" : req.displayName().trim();
+        if (name.isEmpty() || name.length() > 100) return ResponseEntity.badRequest().build();
+        userRepository.updateDisplayName(userId, name);
+        return userRepository.findById(userId)
+                .map(u -> ResponseEntity.ok(new UserResponse(
+                        u.id(), u.displayName(), u.email(), u.avatarUrl(), u.provider())))
+                .orElseGet(() -> ResponseEntity.status(401).build());
+    }
 
+    // GET /api/me/sessions
     @GetMapping("/sessions")
     public List<SessionResponse> sessions(@AuthenticationPrincipal OAuth2User oauthUser) {
         if (oauthUser == null) return List.of();
         String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return List.of();
         return sessionHistoryRepository.findByOwnerUserId(userId).stream()
                 .map(s -> new SessionResponse(
                         s.roomId(), s.roomName(),
@@ -77,28 +104,101 @@ public class AccountController {
                 .toList();
     }
 
-    // ── POST /api/me/rooms — создать комнату из кабинета ─────────
+    // PATCH /api/me/sessions/{roomId}
+    @PatchMapping("/sessions/{roomId}")
+    public ResponseEntity<Void> renameSession(@AuthenticationPrincipal OAuth2User oauthUser,
+                                               @PathVariable String roomId,
+                                               @RequestBody RenameSessionRequest req) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return ResponseEntity.status(401).build();
+        String name = req.name() == null ? "" : req.name().trim();
+        if (name.isEmpty() || name.length() > 60) return ResponseEntity.badRequest().build();
+        sessionHistoryRepository.rename(roomId, userId, name);
+        roomService.getRoom(roomId).ifPresent(r -> {
+            if (userId.equals(r.getOwnerUserId())) {
+                r.setName(name);
+                roomService.persistRoom(r);
+            }
+        });
+        return ResponseEntity.ok().build();
+    }
 
+    // DELETE /api/me/sessions/{roomId}
+    @DeleteMapping("/sessions/{roomId}")
+    public ResponseEntity<Void> deleteSession(@AuthenticationPrincipal OAuth2User oauthUser,
+                                               @PathVariable String roomId) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return ResponseEntity.status(401).build();
+        roomService.getRoom(roomId).ifPresent(r -> {
+            if (userId.equals(r.getOwnerUserId())) roomService.removeEmptyRoom(r);
+        });
+        sessionHistoryRepository.delete(roomId, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    // GET /api/me/sessions/{roomId}/report
+    @GetMapping("/sessions/{roomId}/report")
+    public ResponseEntity<?> sessionReport(@AuthenticationPrincipal OAuth2User oauthUser,
+                                            @PathVariable String roomId) {
+        if (oauthUser == null) return ResponseEntity.status(401).build();
+        String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return ResponseEntity.status(401).build();
+
+        Optional<Room> liveRoom = roomService.getRoom(roomId);
+        if (liveRoom.isPresent()) {
+            return ResponseEntity.ok(buildReportData(liveRoom.get()));
+        }
+
+        Optional<String> snapshotJson = roomRepository.findById(roomId);
+        if (snapshotJson.isPresent()) {
+            try {
+                RoomSnapshot snap = objectMapper.readValue(snapshotJson.get(), RoomSnapshot.class);
+                return ResponseEntity.ok(buildReportData(snap.toRoom()));
+            } catch (Exception e) {
+                return ResponseEntity.status(500).build();
+            }
+        }
+
+        return ResponseEntity.notFound().build();
+    }
+
+    private Map<String, Object> buildReportData(Room room) {
+        List<Map<String, Object>> items = room.getBacklog().stream()
+                .map(i -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("title", i.getTitle());
+                    m.put("estimate", i.getEstimate() != null ? i.getEstimate() : "");
+                    m.put("revotes", 0);
+                    m.put("votes", List.of());
+                    return m;
+                })
+                .toList();
+        return Map.of("roomName", room.getName(), "items", items);
+    }
+
+    // POST /api/me/rooms
     @PostMapping("/rooms")
     public ResponseEntity<Map<String, String>> createRoom(
             @AuthenticationPrincipal OAuth2User oauthUser,
             @RequestBody(required = false) CreateRoomRequest req) {
         if (oauthUser == null) return ResponseEntity.status(401).build();
         String userId = oauthUser.getAttribute("_userId");
+        if (userId == null) return ResponseEntity.status(401).build();
         String name = (req != null && req.name() != null && !req.name().isBlank())
                 ? req.name() : "Новая сессия";
         Deck deck = Deck.FIBONACCI;
         if (req != null && req.deck() != null) {
             try { deck = Deck.valueOf(req.deck().toUpperCase()); }
-            catch (IllegalArgumentException ignored) { /* оставляем FIBONACCI */ }
+            catch (IllegalArgumentException ignored) {}
         }
         Room room = roomService.createRoom(name, deck, userId);
-        // Предзаполнить бэклог задачами из ЛК
         if (req != null && req.tasks() != null) {
             req.tasks().stream()
                 .filter(t -> t != null && !t.isBlank())
                 .map(String::trim)
-                .forEach(title -> room.getBacklog().add(new com.scrumpoker.model.BacklogItem(title)));
+                .forEach(title -> room.getBacklog().add(new BacklogItem(title)));
         }
         roomService.persistRoom(room);
         return ResponseEntity.ok(Map.of("roomId", room.getId()));

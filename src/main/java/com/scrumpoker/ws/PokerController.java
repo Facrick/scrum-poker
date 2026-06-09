@@ -288,7 +288,7 @@ public class PokerController {
         if (entry == null) return;
         Room room = roomService.getRoom(roomId).orElse(null);
         if (room == null) return;
-        Participant sender = room.getParticipant(entry.participantId());
+        Participant sender = room.getParticipant(entry[1]);
         if (sender == null || sender.getRole() != Participant.Role.MODERATOR) return;
         String name = msg.name() == null ? "" : msg.name().trim();
         if (name.isEmpty() || name.length() > 60) return;

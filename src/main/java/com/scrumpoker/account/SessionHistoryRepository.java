@@ -16,7 +16,6 @@ public class SessionHistoryRepository {
         this.jdbc = jdbc;
     }
 
-    /** Обновляет или создаёт запись истории сессии. Вызывается при каждом broadcast. */
     public void upsert(SessionHistory s) {
         int updated = jdbc.update(
                 "UPDATE session_history SET room_name = ?, participant_count = ?, task_count = ?, " +
@@ -40,6 +39,20 @@ public class SessionHistoryRepository {
                         s.estimatedCount(), Timestamp.from(s.lastActiveAt()), s.roomId());
             }
         }
+    }
+
+    /** Rename a session (owner-only). */
+    public void rename(String roomId, String ownerUserId, String newName) {
+        jdbc.update(
+                "UPDATE session_history SET room_name = ? WHERE room_id = ? AND owner_user_id = ?",
+                newName, roomId, ownerUserId);
+    }
+
+    /** Delete a session from history (owner-only). */
+    public void delete(String roomId, String ownerUserId) {
+        jdbc.update(
+                "DELETE FROM session_history WHERE room_id = ? AND owner_user_id = ?",
+                roomId, ownerUserId);
     }
 
     public List<SessionHistory> findByOwnerUserId(String userId) {

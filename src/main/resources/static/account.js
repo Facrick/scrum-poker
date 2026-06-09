@@ -196,7 +196,7 @@ function sessionCard(s) {
 
         <div class="sess-actions">
             ${s.alive
-                ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти →</a>`
+                ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти в сессию</a>`
                 : ''}
             <button class="act-btn" data-copy="${esc(inviteUrl)}" title="Скопировать ссылку-приглашение">🔗</button>
             <a class="act-btn" href="/results?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊</a>

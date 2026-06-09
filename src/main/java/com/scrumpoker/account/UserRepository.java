@@ -16,10 +16,6 @@ public class UserRepository {
         this.jdbc = jdbc;
     }
 
-    /**
-     * Обновляет или создаёт пользователя по паре (provider, providerId).
-     * Паттерн UPDATE→INSERT→retry-UPDATE, как в RoomRepository, для защиты от гонок.
-     */
     public User upsert(String provider, String providerId,
                        String email, String displayName, String avatarUrl) {
         int updated = jdbc.update(
@@ -38,7 +34,6 @@ public class UserRepository {
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     id, provider, providerId, email, displayName, avatarUrl);
         } catch (DuplicateKeyException race) {
-            // Параллельный вход создал запись раньше — просто обновляем
             jdbc.update(
                     "UPDATE users SET email = ?, display_name = ?, avatar_url = ? " +
                     "WHERE provider = ? AND provider_id = ?",
@@ -46,6 +41,11 @@ public class UserRepository {
             return findByProviderKey(provider, providerId).orElseThrow();
         }
         return new User(id, provider, providerId, email, displayName, avatarUrl);
+    }
+
+    /** Update the user's displayed name. */
+    public void updateDisplayName(String id, String displayName) {
+        jdbc.update("UPDATE users SET display_name = ? WHERE id = ?", displayName, id);
     }
 
     public Optional<User> findById(String id) {
