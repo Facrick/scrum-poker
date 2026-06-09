@@ -25,7 +25,9 @@ public record RoomStateDto(
 ) {
     public record ParticipantView(String id, String name, String role, boolean online,
                                    boolean hasVoted, String vote) {}
-    public record BacklogItemView(String id, String title, String estimate) {}
+    public record VoteView(String name, String value) {}
+    public record BacklogItemView(String id, String title, String estimate,
+                                  int revotes, List<VoteView> votes) {}
 
     public static RoomStateDto from(Room room) {
         boolean revealed = room.isRevealed();
@@ -46,7 +48,12 @@ public record RoomStateDto(
                 ? room.getTimerStartedAt().toEpochMilli() : null;
 
         List<BacklogItemView> backlog = room.getBacklog().stream()
-                .map(i -> new BacklogItemView(i.getId(), i.getTitle(), i.getEstimate()))
+                .map(i -> new BacklogItemView(
+                        i.getId(), i.getTitle(), i.getEstimate(),
+                        i.getRevotes(),
+                        i.getVotes().stream()
+                                .map(v -> new VoteView(v.name(), v.value()))
+                                .collect(Collectors.toList())))
                 .collect(Collectors.toList());
 
         return new RoomStateDto(
