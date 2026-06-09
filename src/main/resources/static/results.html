@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Итоги сессии — Scrum Poker</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body { padding: 32px 16px; }
+        .results-page { max-width: 720px; margin: 0 auto; }
+        .results-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+        .results-title { font-size: 22px; font-weight: 700; color: var(--text); margin: 0; }
+        .results-back { font-size: 13px; color: var(--primary); text-decoration: none; }
+        .results-back:hover { text-decoration: underline; }
+        .results-room { font-size: 13px; color: var(--muted); margin-left: auto; }
+        .results-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .results-table th {
+            text-align: left; padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 11px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .06em;
+        }
+        .results-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+        .results-table tr:last-child td { border-bottom: none; }
+        .results-table tr:hover td { background: var(--surface-2); }
+        .est-chip {
+            display: inline-block; background: var(--success-l); color: var(--success);
+            border: 1px solid rgba(63,185,80,.2); border-radius: 6px;
+            padding: 1px 8px; font-weight: 700; font-size: 13px;
+        }
+        .no-est { color: var(--muted); }
+        .progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .progress-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+        .progress-track { flex: 1; height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--success); border-radius: 99px; transition: width .4s; }
+        .error-box { text-align: center; padding: 60px 20px; color: var(--muted); }
+        .error-box strong { display: block; font-size: 18px; color: var(--text); margin-bottom: 8px; }
+        .loading { text-align: center; padding: 60px 20px; color: var(--muted); }
+    </style>
+</head>
+<body>
+<div class="results-page">
+    <div class="results-header">
+        <a class="results-back" href="/account">← Кабинет</a>
+        <h1 class="results-title" id="pageTitle">Итоги сессии</h1>
+        <span class="results-room" id="roomCode"></span>
+    </div>
+    <div id="content"><div class="loading">Загрузка…</div></div>
+</div>
+<script>
+(async () => {
+    const roomId = new URLSearchParams(location.search).get('room');
+    if (!roomId) { showError('Не указан код комнаты'); return; }
+    document.getElementById('roomCode').textContent = roomId;
+
+    try {
+        const res = await fetch('/api/public/sessions/' + encodeURIComponent(roomId));
+        if (res.status === 404) { showError('Сессия не найдена или уже удалена'); return; }
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        render(data, roomId);
+    } catch { showError('Не удалось загрузить данные сессии'); }
+})();
+
+function render(data, roomId) {
+    document.getElementById('pageTitle').textContent = data.roomName || roomId;
+    document.title = (data.roomName || roomId) + ' — Итоги';
+
+    const pct = data.taskCount > 0 ? Math.round(data.estimatedCount / data.taskCount * 100) : 0;
+    const items = data.items || [];
+
+    let html = `
+        <div class="progress-row">
+            <span class="progress-label">Оценено ${data.estimatedCount} из ${data.taskCount}</span>
+            <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <span class="progress-label">${pct}%</span>
+        </div>
+        <table class="results-table">
+            <thead><tr><th>#</th><th>Задача</th><th>Оценка</th></tr></thead>
+            <tbody>`;
+
+    items.forEach((it, i) => {
+        const est = it.estimate
+            ? `<span class="est-chip">${esc(it.estimate)}</span>`
+            : `<span class="no-est">—</span>`;
+        html += `<tr><td>${i + 1}</td><td>${esc(it.title)}</td><td>${est}</td></tr>`;
+    });
+
+    html += `</tbody></table>`;
+    document.getElementById('content').innerHTML = html;
+}
+
+function showError(msg) {
+    document.getElementById('content').innerHTML =
+        `<div class="error-box"><strong>Ошибка</strong>${esc(msg)}</div>`;
+}
+
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

@@ -1194,7 +1194,7 @@ html[data-theme="light"] .seat .card-slot.revealed {
     .backlog-close { display: inline-flex; }
     .deck-action:not(.hidden) { display: inline-flex; min-height: 44px; }
     .story-bar     { display: block; }
-    #consensusResetBtn { display: none; }
+    #consensusResetBtn { display: none !important; }
 
     /* Развёрнутая панель управления не должна занимать весь экран */
     .mod-panel:not(.collapsed) { max-height: 62vh; overflow-y: auto; }

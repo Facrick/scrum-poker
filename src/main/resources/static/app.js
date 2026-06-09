@@ -377,7 +377,7 @@ function updateDeckAction(state) {
         btn.textContent = "Новый раунд";
         btn.className = "btn btn-secondary deck-action";
         btn.disabled = false;
-        btn.onclick = () => send("reset", { participantId: myId });
+        btn.onclick = () => send("next", { participantId: myId });
     }
 }
 
