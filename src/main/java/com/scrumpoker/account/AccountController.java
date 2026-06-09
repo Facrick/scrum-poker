@@ -9,6 +9,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -47,7 +48,7 @@ public class AccountController {
             boolean alive          // комната ещё живёт в памяти сервера
     ) {}
 
-    record CreateRoomRequest(String name, String deck) {}
+    record CreateRoomRequest(String name, String deck, List<String> tasks) {}
 
     // ── GET /api/me ───────────────────────────────────────────────
 
@@ -92,6 +93,14 @@ public class AccountController {
             catch (IllegalArgumentException ignored) { /* оставляем FIBONACCI */ }
         }
         Room room = roomService.createRoom(name, deck, userId);
+        // Предзаполнить бэклог задачами из ЛК
+        if (req != null && req.tasks() != null) {
+            req.tasks().stream()
+                .filter(t -> t != null && !t.isBlank())
+                .map(String::trim)
+                .forEach(title -> room.getBacklog().add(new com.scrumpoker.model.BacklogItem(title)));
+        }
+        roomService.persistRoom(room);
         return ResponseEntity.ok(Map.of("roomId", room.getId()));
     }
 }

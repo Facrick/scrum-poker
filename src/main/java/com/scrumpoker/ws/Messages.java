@@ -14,6 +14,7 @@ public final class Messages {
     public record SetFinalEstimateMessage(String participantId, String estimate) {}
     public record KickMessage(String participantId, String targetId) {}
     public record TransferMessage(String participantId, String targetId) {}
+    public record RenameMessage(String participantId, String name) {}
     // Таймер
     public record StartTimerMessage(String participantId, int seconds) {}
     public record StopTimerMessage(String participantId) {}

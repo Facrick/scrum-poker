@@ -278,6 +278,24 @@ public class PokerController {
         broadcast(room);
     }
 
+
+    @MessageMapping("/room/{roomId}/rename")
+    public void rename(@DestinationVariable String roomId,
+                       @Payload Messages.RenameMessage msg,
+                       SimpMessageHeaderAccessor headers) {
+        if (!rateLimiter.allow("ws:" + headers.getSessionId(), WS_LIMIT, WS_WINDOW_MS)) return;
+        var entry = sessions.get(headers.getSessionId());
+        if (entry == null) return;
+        Room room = roomService.getRoom(roomId).orElse(null);
+        if (room == null) return;
+        Participant sender = room.getParticipant(entry.participantId());
+        if (sender == null || sender.getRole() != Participant.Role.MODERATOR) return;
+        String name = msg.name() == null ? "" : msg.name().trim();
+        if (name.isEmpty() || name.length() > 60) return;
+        room.setName(name);
+        broadcast(room);
+    }
+
     @MessageMapping("/room/{roomId}/transfer")
     public void transferModerator(@DestinationVariable String roomId, @Payload Messages.TransferMessage msg,
                                   SimpMessageHeaderAccessor headers) {
