@@ -723,7 +723,7 @@ function renderResults(state) {
             if (!isFixed) {
                 html += `<button id="confirmEstimateBtn" class="btn btn-success" data-val="${escapeHtml(val)}">Зафиксировать</button>`;
                 html += `<button id="revoteBtn" class="btn btn-ghost">Переголосовать</button>`;
-            } else {
+            } else if (!isMobile()) {
                 html += `<button id="consensusResetBtn" class="btn btn-secondary">Новый раунд</button>`;
             }
             html += `</div>`;
@@ -758,7 +758,7 @@ function renderResults(state) {
                 html += `<button id="revoteBtn" class="btn btn-ghost">Переголосовать</button>`;
             } else {
                 html += `<button id="revoteBtn" class="btn btn-ghost">Переголосовать</button>`;
-                html += `<button id="consensusResetBtn" class="btn btn-secondary">Новый раунд</button>`;
+                if (!isMobile()) html += `<button id="consensusResetBtn" class="btn btn-secondary">Новый раунд</button>`;
             }
             html += `</div>`;
         }
