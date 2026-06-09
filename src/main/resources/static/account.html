@@ -184,6 +184,10 @@
         }
         .btn-new-session:hover { opacity: .85; }
         .btn-new-session:disabled { opacity: .4; cursor: not-allowed; }
+        #createConfirm { background: var(--accent); color: #fff; border: none; border-radius: 8px;
+            padding: .45rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+        #createConfirm:hover { opacity: .85; }
+        #createConfirm:disabled { opacity: .4; cursor: not-allowed; }
         .btn-logout {
             background: none; border: 1.5px solid var(--border); border-radius: 8px;
             padding: .45rem .9rem; font-size: .85rem; font-weight: 500; color: var(--text-muted);
@@ -313,7 +317,7 @@
         </label>
         <div class="modal-actions">
             <button id="createCancel" class="btn-logout">Отмена</button>
-            <button id="createConfirm" class="btn-new-session">Создать и войти →</button>
+            <button id="createConfirm">Создать и войти →</button>
         </div>
     </div>
 </div>
