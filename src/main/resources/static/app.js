@@ -6,13 +6,23 @@ const $ = (id) => document.getElementById(id);
 let stompClient = null;
 let moderatorUser = null; // профиль, если пользователь залогинен
 let roomId = new URLSearchParams(location.search).get("room");
+// host=1 ставит ЛК при создании комнаты: создатель должен сразу войти в неё.
+const hostMode = new URLSearchParams(location.search).get("host") === "1";
 let myId = null;
 let myRole = null;
 let currentState = null;
 let myVote = null;          // локальный выбор карты до вскрытия
 let timerInterval = null;   // setInterval для таймера
 let backlogOpen = false;    // видимость бэклог-панели
+let connectTimeout = null;  // таймаут экрана подключения
+let consensusAutoFixed = false; // авто-фиксация оценки при консенсусе (раз за раунд)
+let modPanelCollapsed = true;   // на мобиле панель управления свёрнута по умолчанию
+let uiLayers = [];              // стек открытых оверлеев (для системной кнопки «Назад»)
+let backlogAutoOpened = false; // бэклог уже автооткрывался при входе с задачами
+let deckExpandedLayer = false; // есть ли запись истории для развёрнутой колоды (мобайл)
 const joinMode = !!roomId;
+const mqMobile = window.matchMedia("(max-width: 700px)");
+function isMobile() { return mqMobile.matches; }
 
 // ---------- Лобби ----------
 let lobbyMode = joinMode ? "join" : "create"; // текущий режим вкладки
@@ -25,7 +35,7 @@ function switchLobbyTab(mode) {
     $("roomNameField").classList.toggle("hidden",  isJoin);
     $("roomCodeField").classList.toggle("hidden",  !isJoin);
     $("roleField").classList.toggle("hidden",      !isJoin);
-    $("primaryBtn").textContent = isJoin ? "Войти в комнату" : "Создать комнату";
+    $("primaryBtn").textContent = isJoin ? "Войти в сессию" : "Создать комнату";
     $("lobbyError").textContent = "";
 }
 
@@ -34,12 +44,14 @@ function switchLobbyTab(mode) {
     if (savedName) $("nameInput").value = savedName;
 
     // Тихая проверка авторизации — не блокирует лобби
-    fetch("/api/me").then(async r => {
+    spAuth.fetch("/api/me").then(async r => {
         if (!r.ok) return;
         const user = await r.json();
         if (!user?.id) return;
         moderatorUser = user;
+        // Предзаполняем имя, если поле ещё пустое
         if (!$("nameInput").value) $("nameInput").value = user.displayName || "";
+        // Показываем бадж вошедшего модератора
         const initL = (user.displayName || "M")[0].toUpperCase();
         const av = user.avatarUrl
             ? `<img class="lobby-mod-badge-av" src="${escapeHtml(user.avatarUrl)}" alt="" referrerpolicy="no-referrer">`
@@ -50,8 +62,15 @@ function switchLobbyTab(mode) {
         $("lobbyModBadge").classList.remove("hidden");
     }).catch(() => {});
 
-    // --- Слушатели всегда регистрируются ---
-    // (нужно и при авто-реконнекте, чтобы кнопки работали после возврата в лобби)
+    // Создание из ЛК (host=1): сразу входим в свежую комнату как модератор,
+    // не показывая экран входа. Имя берём из профиля (сохранено в sp_name).
+    if (hostMode && roomId && savedName) {
+        history.replaceState(null, "", "?room=" + roomId); // убираем host из URL
+        connectAndJoin(savedName, "PLAYER");               // сервер сделает первого вошедшего MODERATOR
+        return;
+    }
+
+    // --- Слушатели всегда регистрируются до return-ов ---
     $("tabCreate").addEventListener("click", () => switchLobbyTab("create"));
     $("tabJoin").addEventListener("click",   () => switchLobbyTab("join"));
     $("primaryBtn").addEventListener("click", onPrimary);
@@ -63,19 +82,16 @@ function switchLobbyTab(mode) {
     const savedRole = localStorage.getItem("sp_role") || "PLAYER";
     if (joinMode && savedName && savedPid) {
         connectAndJoin(savedName, savedRole);
-        return; // лобби не отображается — сразу входим в комнату
+        return;
     }
 
-    // --- Прямая ссылка (/?room=XXX без сохранённого pid) ---
+    // Прямая ссылка: показываем упрощённый экран входа
     if (joinMode) {
-        // Скрываем табы и поле кода — пользователь переходит по конкретной ссылке
         $("lobbyTabs").classList.add("hidden");
         $("roomNameField").classList.add("hidden");
         $("roomCodeField").classList.add("hidden");
         $("roleField").classList.remove("hidden");
         $("primaryBtn").textContent = "Войти в комнату";
-
-        // Показываем название комнаты
         fetch("/api/rooms/" + encodeURIComponent(roomId))
             .then(async r => {
                 if (!r.ok) { switchToCreateMode("Комната не найдена. Проверьте ссылку или создайте новую:"); return; }
@@ -89,7 +105,6 @@ function switchLobbyTab(mode) {
         return;
     }
 
-    // Обычный режим — создать/войти
     switchLobbyTab("create");
 })();
 
@@ -104,7 +119,9 @@ async function onPrimary() {
         if (lobbyMode === "create") {
             const rawRoomName = $("roomNameInput").value.trim();
             const roomName = rawRoomName || "Покер · " + name;
-            const res = await fetch("/api/rooms", {
+            // spAuth.fetch добавит Authorization: Bearer, если модератор вошёл —
+            // иначе сервер не свяжет комнату с владельцем и её не будет в истории ЛК.
+            const res = await spAuth.fetch("/api/rooms", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name: roomName, deck: "FIBONACCI" })
@@ -135,12 +152,13 @@ function lobbyError(msg) { $("lobbyError").textContent = msg; }
 
 /** Переключает лобби в режим создания комнаты. */
 function switchToCreateMode(errorMsg) {
-    // Сбрасываем сохранённую сессию, чтобы при следующем открытии
-    // ссылки не происходил автоматический вход как прежний модератор.
     localStorage.removeItem("sp_pid");
     localStorage.removeItem("sp_role");
     history.replaceState(null, "", "/");
-    // Восстанавливаем полный вид лобби (мог быть скрыт в режиме прямой ссылки)
+    clearTimeout(connectTimeout);
+    $("connecting").classList.add("hidden");
+    $("lobby").classList.remove("hidden");
+    // Восстанавливаем элементы, скрытые в режиме прямой ссылки
     $("lobbyTabs").classList.remove("hidden");
     $("lobbyRoomHint").classList.add("hidden");
     $("lobbySubtitle").classList.remove("hidden");
@@ -148,8 +166,28 @@ function switchToCreateMode(errorMsg) {
     if (errorMsg) lobbyError(errorMsg);
 }
 
+// ---------- Экран подключения ----------
+function showConnecting() {
+    $("lobby").classList.add("hidden");
+    $("room").classList.add("hidden");
+    $("connectingText").classList.remove("hidden");
+    $("connectingError").textContent = "";
+    $("connectingBack").classList.add("hidden");
+    $("connecting").classList.remove("hidden");
+    // Если за 10с не подключились/не вошли — показываем ошибку и путь назад.
+    clearTimeout(connectTimeout);
+    connectTimeout = setTimeout(() => {
+        if (!myId) {
+            $("connectingText").classList.add("hidden");
+            $("connectingError").textContent = "Не удалось подключиться к комнате.";
+            $("connectingBack").classList.remove("hidden");
+        }
+    }, 10000);
+}
+
 // ---------- WebSocket ----------
 function connectAndJoin(name, role) {
+    showConnecting();
     stompClient = new StompJs.Client({
         brokerURL: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
         reconnectDelay: 3000,
@@ -159,9 +197,11 @@ function connectAndJoin(name, role) {
             stompClient.subscribe("/topic/room/" + roomId, (m) => render(JSON.parse(m.body)));
             // При реконнекте передаём сохранённый participantId для восстановления сессии
             const existingId = localStorage.getItem("sp_pid") || "";
+            // token — JWT владельца ЛК (если вошёл): сервер сделает его ведущим в своей комнате.
+            const token = (window.spAuth && spAuth.token()) || "";
             stompClient.publish({
                 destination: "/app/room/" + roomId + "/join",
-                body: JSON.stringify({ name, role, existingId })
+                body: JSON.stringify({ name, role, existingId, token })
             });
         },
         onWebSocketClose: () => setConn(false),
@@ -187,12 +227,18 @@ function onMe(body) {
     if (!joinMode && roomId) {
         history.replaceState(null, "", "?room=" + roomId);
     }
+    // Кладём отдельную запись истории «в комнате», чтобы системная кнопка «Назад»
+    // (особенно на телефоне) выводила из комнаты на лобби, а не из приложения.
+    if (!history.state || !history.state.inRoom) {
+        history.pushState({ inRoom: true }, "", "?room=" + roomId);
+    }
     showRoom(true);
     applyRole();
     if (currentState) render(currentState);
 }
 
 function showRoom(inRoom) {
+    if (inRoom) { clearTimeout(connectTimeout); $("connecting").classList.add("hidden"); }
     $("lobby").classList.toggle("hidden", inRoom);
     $("room").classList.toggle("hidden", !inRoom);
     if (inRoom && moderatorUser) {
@@ -213,55 +259,227 @@ function setConn(online) {
 }
 
 function applyRole() {
-    $("moderatorPanel").classList.toggle("hidden", myRole !== "MODERATOR");
+    const isMod = myRole === "MODERATOR";
+    $("moderatorPanel").classList.toggle("hidden", !isMod);
     $("deckBar").classList.toggle("hidden", myRole === "OBSERVER");
+    // Приглашение и шестерёнка управления — только ведущему.
+    // Бэклог участник видит в режиме «только чтение» (список задач + оценки):
+    // кнопку оставляем, а управление (импорт/удаление/активация/экспорт) скрыто.
+    $("copyLinkBtn").classList.toggle("hidden", !isMod);
+    $("modToggleBtn").classList.toggle("hidden", !isMod);
+    // Сразу прячем поле ввода и кнопку «Добавить списком» у не-ведущего,
+    // не дожидаясь первого рендера бэклога.
+    $("backlogImport").classList.toggle("hidden", !isMod);
+    $("exportCsvBtn").classList.toggle("hidden", !isMod);
+    applyModPanel();
+}
+
+// На мобиле панель управления свёрнута и открывается кнопкой ⚙.
+// На десктопе она всегда развёрнута (collapsed-класс снимается).
+function applyModPanel() {
+    const panel = $("moderatorPanel");
+    if (myRole !== "MODERATOR") { panel.classList.remove("collapsed"); return; }
+    const collapsed = isMobile() && modPanelCollapsed;
+    panel.classList.toggle("collapsed", collapsed);
+    $("modToggleBtn").classList.toggle("active", !collapsed);
 }
 
 // ---------- Рендер ----------
 function render(state) {
-    if (currentState && currentState.revealed && !state.revealed) myVote = null;
+    // Сброс раунда (карты прятались → снова скрыты): забываем локальный выбор.
+    if (currentState && currentState.revealed && !state.revealed) {
+        myVote = null;
+        consensusAutoFixed = false;
+        try { localStorage.removeItem(voteKey()); } catch (e) {}
+    }
     currentState = state;
     if (!myId) return;
 
     // Обновляем роль из состояния (нужно при передаче модератора без перезагрузки)
-    const me = state.participants.find(p => p.id === myId);
-    if (me && me.role !== myRole) {
-        myRole = me.role;
+    const meNow = state.participants.find(p => p.id === myId);
+    if (meNow && meNow.role !== myRole) {
+        myRole = meNow.role;
         applyRole();
     }
 
-    $("roomName").textContent = state.roomName;
-    const storyLabel = $("storyLabel");
-    if (state.currentStory) {
-        storyLabel.textContent = state.currentStory;
-        storyLabel.classList.add("active");
-    } else {
-        storyLabel.textContent = "Задача не задана";
-        storyLabel.classList.remove("active");
+    // Автозапоминание оценки: после F5/реконнекта подсвечиваем ранее выбранную
+    // карту, пока раунд не вскрыт и мы действительно проголосовали.
+    if (myVote == null && !state.revealed) {
+        const me = state.participants.find(p => p.id === myId);
+        let stored = null;
+        try { stored = localStorage.getItem(voteKey()); } catch (e) {}
+        if (stored && me && me.hasVoted) myVote = stored;
     }
+
+    $("roomName").textContent = state.roomName;
+    // Подсказываем ведущему, что название кликабельно для переименования.
+    $("roomName").classList.toggle("editable", myRole === "MODERATOR");
+    $("roomName").title = myRole === "MODERATOR" ? "Нажмите, чтобы переименовать" : state.roomName;
+
+    const storyText = state.currentStory || "Задача не задана";
+    const storyLabel = $("storyLabel");
+    storyLabel.textContent = storyText;
+    storyLabel.classList.toggle("active", !!state.currentStory);
+    // Дублируем текущую задачу в отдельную строку для мобильной версии.
+    const storyBar = $("storyBar");
+    storyBar.textContent = storyText;
+    storyBar.classList.toggle("active", !!state.currentStory);
 
     const online = state.participants.filter(p => p.online).length;
     $("onlineCount").textContent = online + " онлайн";
 
+    const async = !!state.async;
+    // Переключаемся между обычным режимом и async-доской.
+    $("stage").classList.toggle("hidden", async);
+    $("asyncBoard").classList.toggle("hidden", !async);
+    $("deckBar").classList.toggle("hidden", async || myRole === "OBSERVER");
+    // На мобиле регистрируем «развёрнутую колоду» как слой истории, чтобы
+    // системная «Назад» сворачивала карты (а не выходила из комнаты).
+    if (isMobile() && !async && myRole !== "OBSERVER"
+        && !deckExpandedLayer && !$("deckBar").classList.contains("collapsed")) {
+        expandDeck();
+    }
+    // Sync-кнопки раунда не нужны в async-режиме
+    $("revealBtn").classList.toggle("hidden", async);
+    $("resetBtn").classList.toggle("hidden", async);
+
     renderDeckSelector(state);
     renderTimer(state);
     renderModButtons(state);
-    renderTable(state);
-    renderDeck(state);
-    renderResults(state);
-    renderWaitHint(state);
+    if (async) {
+        renderAsyncBoard(state);
+    } else {
+        renderTable(state);
+        renderDeck(state);
+        renderResults(state);
+        renderWaitHint(state);
+    }
     renderBacklog(state);
+    updateAsyncToggle(state);
+    updateDeckAction(state);
+}
+
+// Кнопка «Вскрыть карты» / «Новый раунд» прямо на клавиатуре с оценками —
+// чтобы ведущему на мобиле не открывать панель ⚙ ради вскрытия. На десктопе
+// она скрыта (там есть панель управления); видимость задаётся CSS.
+function updateDeckAction(state) {
+    const btn = $("deckActionBtn");
+    const show = myRole === "MODERATOR" && !state.async;
+    btn.classList.toggle("hidden", !show);
+    if (!show) return;
+    if (!state.revealed) {
+        const anyVoted = state.participants.some(p => p.role !== "OBSERVER" && p.hasVoted);
+        btn.textContent = "Вскрыть карты";
+        btn.className = "btn btn-primary deck-action";
+        btn.disabled = !anyVoted;
+        btn.onclick = () => send("reveal", { participantId: myId });
+    } else {
+        btn.textContent = "Новый раунд";
+        btn.className = "btn btn-secondary deck-action";
+        btn.disabled = false;
+        btn.onclick = () => send("reset", { participantId: myId });
+    }
+}
+
+// Ключ локального хранения выбранной карты (для автозапоминания при F5/реконнекте).
+function voteKey() { return "sp_vote_" + roomId; }
+
+// ---------- Async-доска (#3) ----------
+function asyncVotesKey() { return "sp_async_" + roomId; }
+function loadAsyncVotes() {
+    try { return JSON.parse(localStorage.getItem(asyncVotesKey()) || "{}"); } catch { return {}; }
+}
+function saveAsyncVote(itemId, value) {
+    const m = loadAsyncVotes(); m[itemId] = value;
+    localStorage.setItem(asyncVotesKey(), JSON.stringify(m));
+}
+
+function updateAsyncToggle(state) {
+    const btn = $("asyncToggle");
+    if (myRole !== "MODERATOR") { btn.classList.add("hidden"); return; }
+    btn.classList.remove("hidden");
+    btn.textContent = state.async ? "Async: вкл" : "Async: выкл";
+    btn.classList.toggle("btn-primary", !!state.async);
+    btn.onclick = () => send("async", { participantId: myId, enabled: !state.async });
+}
+
+function renderAsyncBoard(state) {
+    const board = $("asyncBoard");
+    board.innerHTML = "";
+    const items = state.backlog || [];
+    if (items.length === 0) {
+        board.innerHTML = `<div class="async-empty">Бэклог пуст. Добавьте задачи (панель «Бэклог»), и команда сможет голосовать.</div>`;
+        return;
+    }
+    const myVotes = loadAsyncVotes();
+    const isMod = myRole === "MODERATOR";
+    const isObserver = myRole === "OBSERVER";
+
+    items.forEach(item => {
+        const done = !!item.estimate;
+        const card = document.createElement("div");
+        card.className = "async-card" + (item.itemRevealed ? " revealed" : "") + (done ? " done" : "");
+
+        const status = done ? `<span class="async-status done">Оценка: ${escapeHtml(item.estimate)}</span>`
+            : item.itemRevealed ? `<span class="async-status">Вскрыто</span>`
+            : `<span class="async-status">${item.voteCount} голос(ов)</span>`;
+
+        let html = `<div class="async-card-head">
+            <span class="async-title">${escapeHtml(item.title)}</span>${status}
+        </div>`;
+
+        // Голосование участника (пока задача не вскрыта)
+        if (!isObserver && !item.itemRevealed) {
+            html += `<div class="async-vote-row">` +
+                state.cards.map(c => {
+                    const picked = myVotes[item.id] === c;
+                    return `<button class="av${picked ? " picked" : ""}" data-vote="${escapeHtml(c)}">${escapeHtml(c)}</button>`;
+                }).join("") + `</div>`;
+        }
+
+        // После вскрытия — кто как проголосовал
+        if (item.itemRevealed && item.votes && item.votes.length) {
+            html += `<div class="async-votes">` +
+                item.votes.map(v => `<span class="async-chip">${escapeHtml(v.name)}<b>${escapeHtml(v.value)}</b></span>`).join("") +
+                `</div>`;
+        }
+
+        // Управление ведущего
+        if (isMod && !done) {
+            if (!item.itemRevealed) {
+                html += `<div class="async-mod"><button class="btn btn-primary btn-sm" data-reveal>Вскрыть (${item.voteCount})</button></div>`;
+            } else {
+                html += `<div class="async-mod"><span class="lbl">Зафиксировать:</span>` +
+                    state.cards.map(c => `<button class="async-fin" data-fin="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("") +
+                    `</div>`;
+            }
+        }
+
+        card.innerHTML = html;
+
+        card.querySelectorAll("[data-vote]").forEach(b => b.addEventListener("click", () => {
+            const val = b.dataset.vote;
+            saveAsyncVote(item.id, val);
+            send("backlog/vote", { participantId: myId, itemId: item.id, value: val });
+            renderAsyncBoard(state); // мгновенно подсветить выбор
+        }));
+        const rev = card.querySelector("[data-reveal]");
+        if (rev) rev.addEventListener("click", () => send("backlog/reveal", { participantId: myId, itemId: item.id }));
+        card.querySelectorAll("[data-fin]").forEach(b => b.addEventListener("click", () =>
+            send("backlog/estimate", { participantId: myId, itemId: item.id, value: b.dataset.fin })));
+
+        board.appendChild(card);
+    });
 }
 
 // ---------- Кнопки модератора ----------
 function renderModButtons(state) {
     if (myRole !== "MODERATOR") return;
-    // Считаем только онлайн-игроков (не наблюдателей).
-    // Если игрок отключился не проголосовав — он не блокирует вскрытие.
-    const voters = state.participants.filter(p => p.role !== "OBSERVER" && p.online);
+    // Вскрыть — только когда ВСЕ онлайн-участники (не наблюдатели) проголосовали
+    const voters = state.participants.filter(p => p.online && p.role !== "OBSERVER");
     const allVoted = voters.length > 0 && voters.every(p => p.hasVoted);
-    // Вскрыть — только когда все онлайн-игроки проголосовали
     $("revealBtn").disabled = state.revealed || !allVoted;
+    // Новый раунд — только если карты вскрыты
     $("resetBtn").disabled = !state.revealed;
 }
 
@@ -373,18 +591,22 @@ function renderTable(state) {
             const kick = document.createElement("button");
             kick.className = "kick";
             kick.textContent = "✕";
-            kick.title = "Удалить участника";
+            kick.title = "Удалить";
             kick.onclick = () => send("kick", { participantId: myId, targetId: p.id });
             slot.appendChild(kick);
 
-            // Передать роль ведущего (только для не-модераторов)
-            if (p.role !== "MODERATOR") {
+            // Передать права ведущего (вручную) — кроме наблюдателей и тех, кто уже ведущий.
+            if (p.role !== "OBSERVER" && p.role !== "MODERATOR") {
                 const crown = document.createElement("button");
-                crown.className = "crown-btn";
+                crown.className = "promote";
                 crown.textContent = "♛";
                 crown.title = "Сделать ведущим";
-                crown.onclick = () => send("transfer", { participantId: myId, targetId: p.id });
-                who.appendChild(crown);
+                crown.onclick = () => {
+                    if (confirm(`Сделать «${p.name}» ведущим?`)) {
+                        send("transfer", { participantId: myId, targetId: p.id });
+                    }
+                };
+                slot.appendChild(crown);
             }
         }
 
@@ -414,6 +636,7 @@ function renderDeck(state) {
         btn.title = card;
         btn.onclick = () => {
             myVote = card;
+            try { localStorage.setItem(voteKey(), card); } catch (e) {}
             send("vote", { participantId: myId, value: card });
         };
 
@@ -440,6 +663,30 @@ function renderDeck(state) {
         : "Выберите карту";
 }
 
+// Аналитика всей сессии (по всему бэклогу): оценено, сумма поинтов,
+// доля консенсуса, среднее число переголосований.
+function renderSessionStats(state) {
+    const box = $("backlogStats");
+    const items = (state.backlog || []);
+    const estimated = items.filter(i => i.estimate != null && i.estimate !== "");
+    if (estimated.length === 0) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+
+    const isNum = v => v != null && v !== "" && isFinite(parseFloat(v));
+    const sumPoints = estimated.reduce((n, i) => n + (isNum(i.estimate) ? parseFloat(i.estimate) : 0), 0);
+    const withVotes = estimated.filter(i => i.votes && i.votes.length);
+    const consensusCount = withVotes.filter(i => new Set(i.votes.map(v => v.value)).size === 1).length;
+    const consensusRate = withVotes.length ? Math.round(consensusCount / withVotes.length * 100) : 0;
+    const totalRevotes = items.reduce((n, i) => n + (i.revotes || 0), 0);
+
+    box.innerHTML = `
+        <div class="backlog-stat"><div class="v">${estimated.length}/${items.length}</div><div class="l">Оценено</div></div>
+        <div class="backlog-stat"><div class="v">${Math.round(sumPoints * 10) / 10}</div><div class="l">Σ поинтов</div></div>
+        <div class="backlog-stat"><div class="v">${consensusRate}%</div><div class="l">Консенсус</div></div>
+        <div class="backlog-stat"><div class="v">${totalRevotes}</div><div class="l">Переголосований</div></div>
+    `;
+    box.classList.remove("hidden");
+}
+
 // ---------- Результаты ----------
 function renderResults(state) {
     const el = $("results");
@@ -454,6 +701,13 @@ function renderResults(state) {
         // ── Консенсус ──────────────────────────────────────────────
         const val = Object.keys(s.distribution)[0];
         const isPlain = /[^\x00-\x7F]/.test(val) || isNaN(parseFloat(val));
+
+        // Авто-фиксация: при полном согласии команды оценка проставляется
+        // автоматически — ведущему не нужно жать «Зафиксировать».
+        if (isMod && !isFixed && !consensusAutoFixed) {
+            consensusAutoFixed = true;
+            send("estimate", { participantId: myId, estimate: val });
+        }
 
         html += `<div class="consensus-hero">
             <div class="consensus-hero-value${isPlain ? ' plain' : ''}">${escapeHtml(val)}</div>
@@ -523,7 +777,9 @@ function renderResults(state) {
     const revoteBtn = $("revoteBtn");
     if (revoteBtn) revoteBtn.addEventListener("click", () => send("reset", { participantId: myId }));
     const resetBtn2 = $("consensusResetBtn");
-    if (resetBtn2) resetBtn2.addEventListener("click", () => send("reset", { participantId: myId }));
+    // «Новый раунд» после фиксации оценки — переходим к следующей задаче бэклога
+    // (сервер сам откатится к reset, если незаоценённых задач больше нет).
+    if (resetBtn2) resetBtn2.addEventListener("click", () => send("next", { participantId: myId }));
 }
 
 // ---------- Прогресс голосования ----------
@@ -549,11 +805,21 @@ function renderBacklog(state) {
     const list = $("backlogList");
 
     const hasItems = state.backlog && state.backlog.length > 0;
-    // Открываем автоматически, если появились задачи и панель ещё не открыта
-    if (hasItems && !backlogOpen) {
-        backlogOpen = true;
+    // Один раз при входе с уже готовым бэклогом показываем задачи: на десктопе —
+    // боковой панелью, на мобиле — выезжающим листом (как слой для «Назад»).
+    // Иначе созданная из ЛК сессия с задачами выглядела «пустой».
+    if (hasItems && !backlogAutoOpened) {
+        backlogAutoOpened = true;
+        if (isMobile()) { if (!backlogOpen) openBacklog(); }
+        else setBacklogOpen(true);
     }
     panel.classList.toggle("hidden", !backlogOpen);
+
+    // Импорт списком и экспорт — только ведущему; участник видит список «только чтение»
+    $("backlogImport").classList.toggle("hidden", myRole !== "MODERATOR");
+    $("exportCsvBtn").classList.toggle("hidden", myRole !== "MODERATOR");
+
+    renderSessionStats(state);
 
     if (!state.backlog) return;
     list.innerHTML = "";
@@ -576,6 +842,32 @@ function renderBacklog(state) {
 
         el.append(dot, titleEl, estEl);
 
+        // История раунда (#6): значок переголосований + раскрытие голосов.
+        const hasHistory = isDone && ((item.votes && item.votes.length) || item.revotes > 0);
+        let details = null;
+        if (hasHistory) {
+            if (item.revotes > 0) {
+                const rev = document.createElement("span");
+                rev.className = "backlog-revotes";
+                rev.title = "Переголосований: " + item.revotes;
+                rev.textContent = "↻" + item.revotes;
+                el.appendChild(rev);
+            }
+            const info = document.createElement("button");
+            info.className = "backlog-info";
+            info.title = "Как голосовали";
+            info.textContent = "ⓘ";
+            el.appendChild(info);
+
+            details = document.createElement("div");
+            details.className = "backlog-votes hidden";
+            details.innerHTML = (item.votes || [])
+                .map(v => `<span class="backlog-vote-chip">${escapeHtml(v.name)}<b>${escapeHtml(v.value)}</b></span>`)
+                .join("") || '<span class="backlog-votes-empty">нет голосов</span>';
+
+            info.onclick = (e) => { e.stopPropagation(); details.classList.toggle("hidden"); };
+        }
+
         if (myRole === "MODERATOR") {
             el.title = isActive ? "Текущая задача" : "Активировать";
             el.style.cursor = isActive ? "default" : "pointer";
@@ -593,6 +885,7 @@ function renderBacklog(state) {
             el.appendChild(rm);
         }
         list.appendChild(el);
+        if (details) list.appendChild(details);
     });
 }
 
@@ -600,46 +893,36 @@ function exportCsv() {
     if (!currentState || !currentState.backlog || currentState.backlog.length === 0) {
         toast("Бэклог пуст"); return;
     }
+    const items = currentState.backlog;
+    const consensusOf = it => (it.votes && it.votes.length)
+        ? (new Set(it.votes.map(v => v.value)).size === 1 ? "Да" : "Нет") : "";
 
-    const rows = [["Задача", "Оценка"]];
-    currentState.backlog.forEach(item => rows.push([item.title, item.estimate || ""]));
+    const rows = [["№", "Задача", "Оценка", "Переголосований", "Консенсус", "Голоса"]];
+    items.forEach((it, i) => {
+        const votes = (it.votes || []).map(v => `${v.name}: ${v.value}`).join("; ");
+        rows.push([i + 1, it.title, it.estimate || "", it.revotes || 0, consensusOf(it), votes]);
+    });
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-
-    // Ширина столбцов
-    ws["!cols"] = [{ wch: 50 }, { wch: 12 }];
-
-    // Стиль заголовка (жирный)
-    ["A1", "B1"].forEach(cell => {
-        if (ws[cell]) ws[cell].s = { font: { bold: true } };
-    });
+    ws["!cols"] = [{ wch: 4 }, { wch: 44 }, { wch: 8 }, { wch: 16 }, { wch: 11 }, { wch: 50 }];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Бэклог");
-
-    const filename = (currentState.roomName || "scrum-poker") + ".xlsx";
-    XLSX.writeFile(wb, filename);
+    XLSX.writeFile(wb, (currentState.roomName || "scrum-poker") + ".xlsx");
     toast("Excel скачан", true);
 }
 
-function metric(label, value) {
-    return `<div class="metric"><div class="label">${label}</div><div class="value">${value}</div></div>`;
-}
-
 // ---------- Действия ----------
-$("setStoryBtn").addEventListener("click", () => {
-    const v = $("storyInput").value.trim();
-    if (!v) return;
-    send("story", { participantId: myId, story: v });
-    $("storyInput").value = "";
-    $("setStoryBtn").disabled = true;
+// Переименование сессии «в моменте»: ведущий кликает по названию комнаты.
+$("roomName").addEventListener("click", () => {
+    if (myRole !== "MODERATOR") return;
+    const cur = currentState ? currentState.roomName : "";
+    const name = prompt("Новое название сессии:", cur || "");
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === cur) return;
+    send("rename", { participantId: myId, name: trimmed });
 });
-$("storyInput").addEventListener("keydown", e => { if (e.key === "Enter") $("setStoryBtn").click(); });
-$("storyInput").addEventListener("input", () => {
-    $("setStoryBtn").disabled = !$("storyInput").value.trim();
-});
-// Изначально заблокирована
-$("setStoryBtn").disabled = true;
 
 $("revealBtn").addEventListener("click", () => send("reveal", { participantId: myId }));
 $("resetBtn").addEventListener("click", () => send("reset", { participantId: myId }));
@@ -673,10 +956,53 @@ $("startTimerBtn").addEventListener("click", () => {
 });
 $("stopTimerBtn").addEventListener("click", () => send("timer/stop", { participantId: myId }));
 
-// Бэклог
-$("toggleBacklogBtn").addEventListener("click", () => {
-    backlogOpen = !backlogOpen;
-    $("backlogPanel").classList.toggle("hidden", !backlogOpen);
+// Бэклог — оверлей, закрываемый кнопкой «Назад»
+function setBacklogOpen(open) {
+    backlogOpen = open;
+    $("backlogPanel").classList.toggle("hidden", !open);
+}
+function openBacklog()  { setBacklogOpen(true);  pushLayer("backlog", () => setBacklogOpen(false)); }
+function closeBacklog() { if (!consumeLayer("backlog")) setBacklogOpen(false); }
+$("toggleBacklogBtn").addEventListener("click", () => { backlogOpen ? closeBacklog() : openBacklog(); });
+$("backlogCloseBtn").addEventListener("click", closeBacklog);
+
+// Панель управления (⚙) — оверлей на мобиле, тоже закрывается «Назад»
+function openModMenu()  { modPanelCollapsed = false; applyModPanel(); pushLayer("modmenu", () => { modPanelCollapsed = true; applyModPanel(); }); }
+function closeModMenu() { if (!consumeLayer("modmenu")) { modPanelCollapsed = true; applyModPanel(); } }
+$("modToggleBtn").addEventListener("click", () => { modPanelCollapsed ? openModMenu() : closeModMenu(); });
+
+// Свернуть/развернуть раскладку оценки (колоду карт).
+// На мобиле развёрнутая колода — это слой в истории: системная «Назад» её сворачивает.
+function setDeckCollapsed(collapsed) {
+    $("deckBar").classList.toggle("collapsed", collapsed);
+    $("deckCollapseBtn").textContent = collapsed ? "▴ Показать карты" : "▾ Свернуть карты";
+}
+function expandDeck() {
+    setDeckCollapsed(false);
+    if (isMobile() && !deckExpandedLayer) {
+        deckExpandedLayer = true;
+        pushLayer("deck", () => { deckExpandedLayer = false; setDeckCollapsed(true); });
+    }
+}
+function collapseDeck() {
+    if (deckExpandedLayer) consumeLayer("deck"); // через history.back → popstate свернёт
+    else setDeckCollapsed(true);
+}
+$("deckCollapseBtn").addEventListener("click", () => {
+    $("deckBar").classList.contains("collapsed") ? expandDeck() : collapseDeck();
+});
+
+// При повороте экрана / смене ширины пересобираем мобильную раскладку
+mqMobile.addEventListener("change", () => { if (myRole) applyModPanel(); });
+
+$("backlogImportBtn").addEventListener("click", () => {
+    const raw = $("backlogImportInput").value;
+    const titles = raw.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+    if (titles.length === 0) { toast("Вставьте хотя бы одну задачу"); return; }
+    if (titles.length > 200) { toast("Не более 200 задач за раз"); return; }
+    send("backlog/import", { participantId: myId, titles });
+    $("backlogImportInput").value = "";
+    toast(`Добавлено задач: ${titles.length}`, true);
 });
 
 $("exportCsvBtn").addEventListener("click", exportCsv);
@@ -684,6 +1010,78 @@ $("exportCsvBtn").addEventListener("click", exportCsv);
 $("copyLinkBtn").addEventListener("click", () => {
     const url = location.origin + "/?room=" + roomId;
     navigator.clipboard.writeText(url).then(() => toast("Ссылка скопирована — отправьте команде", true));
+});
+
+// ---------- Выход из комнаты ----------
+// Просто покидаем комнату на этом устройстве. Сессия НЕ закрывается, даже если
+// выходит ведущий — её можно открыть снова из «Кабинета модератора» или по коду.
+
+// Сбрасываем локальное состояние комнаты (общая часть для выхода и «Назад»).
+function clearRoomSession() {
+    try { localStorage.removeItem("sp_pid"); } catch (e) {}
+    try { localStorage.removeItem("sp_role"); } catch (e) {}
+    try { localStorage.removeItem(voteKey()); } catch (e) {}
+    if (stompClient) { try { stompClient.deactivate(); } catch (e) {} }
+    stompClient = null;
+    myId = null;
+    currentState = null;
+    clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+// Возврат в лобби БЕЗ перезагрузки страницы — это «действие назад», а не
+// навигация. Используется и кнопкой «Выход», и системной кнопкой «Назад».
+function returnToLobby() {
+    clearRoomSession();
+    uiLayers = [];
+    backlogAutoOpened = false;
+    deckExpandedLayer = false;
+    $("room").classList.add("hidden");
+    $("connecting").classList.add("hidden");
+    $("lobby").classList.remove("hidden");
+    // Чистим URL от ?room, чтобы обновление страницы не перезашло в комнату.
+    if (location.search) history.replaceState(null, "", "/");
+    switchLobbyTab(joinMode ? "join" : "create");
+    $("primaryBtn").disabled = false;
+}
+
+// ---------- Менеджер оверлеев (бэклог, ⚙-панель) для кнопки «Назад» ----------
+// Каждый открытый оверлей добавляет запись в историю. Системная кнопка «Назад»
+// сначала закрывает верхний оверлей и только когда всё закрыто — выходит в лобби.
+function pushLayer(name, closeFn) {
+    uiLayers.push({ name, close: closeFn });
+    history.pushState({ inRoom: true, layer: name }, "", "?room=" + roomId);
+}
+// Закрыть оверлей по имени. Если это верхний слой — уходим через history.back()
+// (его закроет popstate), синхронно убирая запись истории. Возвращает true,
+// если слой найден и обработан.
+function consumeLayer(name) {
+    const idx = uiLayers.map(l => l.name).lastIndexOf(name);
+    if (idx === -1) return false;
+    if (idx === uiLayers.length - 1) { history.back(); return true; }
+    uiLayers[idx].close();
+    uiLayers.splice(idx, 1);
+    return true;
+}
+
+$("leaveRoomBtn").addEventListener("click", () => {
+    const ask = myRole === "MODERATOR"
+        ? "Выйти из комнаты? Сессия останется активной — вы сможете вернуться из кабинета или по коду."
+        : "Выйти из комнаты?";
+    if (!confirm(ask)) return;
+    returnToLobby();
+});
+
+// Системная кнопка «Назад»:
+//   • если открыт оверлей — закрываем его (остаёмся в комнате);
+//   • иначе, если мы в комнате — возвращаемся в лобби (in-app, без перезагрузки).
+window.addEventListener("popstate", () => {
+    if (uiLayers.length > 0) {
+        uiLayers.pop().close();
+        return;
+    }
+    const inRoom = !$("room").classList.contains("hidden");
+    if (inRoom) returnToLobby();
 });
 
 function send(action, payload) {

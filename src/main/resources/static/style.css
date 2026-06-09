@@ -24,7 +24,53 @@
     --shadow:    0 8px 32px rgba(0, 0, 0, .5);
     --radius:    10px;
     --radius-sm: 6px;
+    /* Алиасы, используемые в account.html/results.html */
+    --card:        #161b22;
+    --accent:      #2f81f7;
+    --text-muted:  #8b949e;
 }
+
+/* ---- Светлая тема (мягкая, нейтральная — без белого «выжигания») ---- */
+html[data-theme="light"] {
+    --bg:        #e7eaef;
+    --bg-soft:   #eef1f5;
+    --surface:   #eef1f5;
+    --surface-2: #e3e7ed;
+    --surface-3: #d4dae2;
+    --border:    #d3d9e1;
+    --border-2:  #bbc3cd;
+    --text:      #2e333b;
+    --muted:     #616b77;
+    --primary:   #2563cf;
+    --primary-d: #1f56b8;
+    --primary-l: rgba(37, 99, 207, .12);
+    --success:   #2f8f46;
+    --success-d: #277a3b;
+    --success-l: rgba(47, 143, 70, .14);
+    --danger:    #cf4b45;
+    --danger-l:  rgba(207, 75, 69, .12);
+    --warn:      #9a6700;
+    --shadow:    0 8px 28px rgba(70, 80, 95, .18);
+    --card:        #f4f6f9;
+    --accent:      #2563cf;
+    --text-muted:  #616b77;
+}
+html[data-theme="light"] body {
+    background-image:
+        radial-gradient(ellipse 80% 40% at 10% 0%, rgba(37, 99, 207, .05) 0%, transparent 55%);
+}
+
+/* Переключатель темы */
+.theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; flex-shrink: 0;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); cursor: pointer;
+    font-size: 1rem; line-height: 1; padding: 0;
+    transition: border-color .15s, background .15s;
+}
+.theme-toggle:hover { border-color: var(--border-2); }
+.theme-toggle-fixed { position: fixed; top: 14px; right: 14px; z-index: 60; }
 
 /* ---- Reset ---- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -151,14 +197,6 @@ body {
     color: var(--text);
     letter-spacing: -.02em;
 }
-.lobby-room-hint {
-    font-size: .95rem;
-    font-weight: 600;
-    color: var(--text);
-    margin: 0 0 .25rem;
-    text-align: center;
-}
-
 .lobby-sub {
     font-size: 13px;
     color: var(--muted);
@@ -288,9 +326,10 @@ body {
 
 /* ---- Top bar ---- */
 .topbar {
-    display: flex;          /* flex вместо grid — center абсолютно позиционирован */
+    display: flex;
+    position: relative;
     align-items: center;
-    position: relative;     /* нужно для абсолютного центрирования story-label */
+    gap: 16px;
     padding: 0 16px;
     height: 48px;
     background: var(--bg-soft);
@@ -303,7 +342,6 @@ body {
     align-items: center;
     gap: 8px;
     min-width: 0;
-    flex: 1;                /* занимает левую половину */
 }
 .topbar-suit {
     font-size: 16px;
@@ -323,16 +361,15 @@ body {
 }
 
 .topbar-center {
-    /* Абсолютное центрирование — название задачи всегда по центру топбара,
-       не сдвигается при изменении содержимого левой/правой части */
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
     justify-content: center;
-    max-width: 40%;         /* не перекрывает кнопки при длинном названии */
-    pointer-events: none;   /* клики проходят сквозь — для кнопок позади */
+    max-width: 40%;
+    pointer-events: none;
+    overflow: hidden;
 }
 .room-story {
     font-size: 13px;
@@ -346,11 +383,11 @@ body {
 .room-story.active { color: var(--text); }
 
 .topbar-right {
+    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
-    margin-left: auto;      /* прижимаем к правому краю */
 }
 
 .pill {
@@ -460,7 +497,7 @@ body {
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    position: relative;     /* нужно для абсолютного позиционирования бэклога */
+    position: relative;
 }
 
 /* ---- Stage ---- */
@@ -558,6 +595,16 @@ body {
     65%  { transform: rotateY(-5deg) scale(1.03); }
     100% { transform: rotateY(0deg)  scale(1); opacity: 1; }
 }
+/* Карты голосования в светлой теме (рубашка и вскрытая) */
+html[data-theme="light"] .seat .card-slot.voted {
+    background: linear-gradient(155deg, #dde5f6 0%, #cfdaf0 100%);
+    border-color: rgba(37, 99, 207, .35);
+    box-shadow: 0 2px 10px rgba(37, 99, 207, .12);
+}
+html[data-theme="light"] .seat .card-slot.revealed {
+    background: linear-gradient(155deg, #3a78e6 0%, #2f63d6 100%);
+    box-shadow: 0 4px 18px rgba(37, 99, 207, .3);
+}
 
 .seat .who { display: flex; align-items: center; gap: 5px; max-width: 100px; }
 .seat .avatar {
@@ -587,16 +634,19 @@ body {
 .seat:hover .kick { display: flex; }
 .seat .kick:hover { background: var(--danger-l); color: var(--danger); border-color: var(--danger); }
 
-/* Кнопка передачи роли ведущего */
-.crown-btn {
-    display: none;
-    background: none; border: none;
-    color: var(--muted); font-size: 13px;
-    cursor: pointer; padding: 0 2px; line-height: 1;
-    transition: color .15s;
+/* Кнопка «сделать ведущим» — зеркало kick, слева сверху, золотой акцент */
+.seat .promote {
+    position: absolute; top: -6px; left: -6px;
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface-3); color: var(--muted);
+    font-size: 11px; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    padding: 0; transition: background .1s, color .1s;
+    z-index: 2;
 }
-.who:hover .crown-btn { display: inline; }
-.crown-btn:hover { color: #f0a500; }
+.seat:hover .promote { display: flex; }
+.seat .promote:hover { background: rgba(210, 153, 34, .15); color: var(--warn); border-color: var(--warn); }
 
 /* Corner pips on revealed/deck cards */
 .pcard-corner {
@@ -817,23 +867,66 @@ body {
 
 .deck-hint { color: var(--muted); font-size: 12px; margin: 0; }
 
+/* ===== Async-доска (#3) ===== */
+.async-board {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px; align-content: start;
+}
+.async-card {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+    border-left: 3px solid transparent;
+}
+.async-card.revealed { border-left-color: var(--warn); }
+.async-card.done { border-left-color: var(--success); }
+.async-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.async-title { font-weight: 600; color: var(--text); word-break: break-word; }
+.async-status { flex-shrink: 0; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.async-status.done { color: var(--success); }
+.async-vote-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.async-vote-row .av {
+    min-width: 34px; height: 38px; padding: 0 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    border-radius: 8px; font-weight: 700; cursor: pointer;
+    transition: border-color .12s, background .12s, transform .12s;
+}
+.async-vote-row .av:hover:not(:disabled) { border-color: var(--primary); transform: translateY(-2px); }
+.async-vote-row .av.picked { background: linear-gradient(160deg, var(--primary) 0%, var(--primary-d) 100%); color: #fff; border-color: transparent; }
+.async-vote-row .av:disabled { opacity: .4; cursor: not-allowed; }
+.async-votes { display: flex; flex-wrap: wrap; gap: 5px; }
+.async-chip {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--muted);
+}
+.async-chip b { color: var(--text); }
+.async-mod { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+.async-mod .lbl { font-size: 11px; color: var(--muted); }
+.async-fin {
+    min-width: 30px; height: 30px; padding: 0 7px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer;
+}
+.async-fin:hover { border-color: var(--success); color: var(--success); }
+.async-empty { grid-column: 1/-1; text-align: center; color: var(--muted); padding: 40px; }
+
 /* =====================================================
    Backlog panel
    ===================================================== */
 .backlog-panel {
-    /* Оверлей поверх стола — не сдвигает stage */
     position: absolute;
     right: 0;
     top: 0;
     bottom: 0;
-    width: 300px;
-    z-index: 20;
+    width: 280px;
+    min-width: 240px;
     border-left: 1px solid var(--border);
     background: var(--bg-soft);
-    box-shadow: -6px 0 24px rgba(0,0,0,.25);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    z-index: 20;
+    box-shadow: -6px 0 24px rgba(0,0,0,.25);
 }
 .backlog-header {
     display: flex;
@@ -849,6 +942,35 @@ body {
     letter-spacing: .06em;
 }
 .backlog-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.backlog-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.backlog-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+.backlog-stat .v { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.1; }
+.backlog-stat .l { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+.backlog-import {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.backlog-import-input {
+    width: 100%;
+    min-height: 64px;
+    resize: vertical;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.4;
+}
+.backlog-import-input:focus { outline: none; border-color: var(--accent); }
 .backlog-item {
     display: flex;
     align-items: center;
@@ -892,6 +1014,31 @@ body {
 .backlog-item:hover .backlog-remove { opacity: 1; }
 .backlog-remove:hover { color: var(--danger); }
 
+/* История раунда (#6) */
+.backlog-revotes {
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0 6px; white-space: nowrap;
+}
+.backlog-info {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 13px; padding: 2px 4px; border-radius: 4px;
+}
+.backlog-info:hover { color: var(--text); }
+.backlog-votes {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    padding: 4px 12px 8px 28px;
+    background: var(--surface);
+}
+.backlog-vote-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 1px 6px;
+}
+.backlog-vote-chip b { color: var(--text); font-weight: 700; }
+.backlog-votes-empty { font-size: 11px; color: var(--muted); }
+
 /* =====================================================
    Toast
    ===================================================== */
@@ -911,29 +1058,208 @@ body {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.success { border-left-color: var(--success); }
 
+/* Иконка кнопки видна только когда текст скрыт (на узких экранах) */
+.btn-ico { display: none; line-height: 1; font-size: 14px; }
+
+/* Кнопка «Выход» из комнаты — нейтральная, с красным акцентом при наведении */
+#leaveRoomBtn:hover:not(:disabled) {
+    color: var(--danger);
+    border-color: rgba(248, 81, 73, .4);
+    background: var(--danger-l);
+}
+
+/* Активное (нажатое) состояние ghost-кнопок: ⚙ панель управления и т.п. */
+.btn-ghost.active {
+    color: var(--text);
+    border-color: var(--primary);
+    background: var(--primary-l);
+}
+
+/* Шестерёнка панели управления — только на мобиле (на десктопе панель видна всегда) */
+#modToggleBtn { display: none; }
+
+/* Свёрнутая панель управления (на мобиле по кнопке ⚙) */
+.mod-panel.collapsed { display: none; }
+
+/* Кнопка сворачивания колоды — только на мобиле */
+.deck-collapse {
+    display: none;
+    align-self: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 999px;
+    font: inherit; font-size: 12px; font-weight: 600;
+    padding: 3px 14px; cursor: pointer; line-height: 1.4;
+}
+.deck-collapse:hover { color: var(--text); border-color: var(--border-2); }
+.deckbar.collapsed .deck,
+.deckbar.collapsed .deck-hint { display: none; }
+.deckbar.collapsed { padding-bottom: 10px; }
+
+/* Кнопка действия раунда на клавиатуре оценок — только на мобиле (ведущему) */
+.deck-action { display: none; width: 100%; max-width: 340px; }
+
+/* Строка текущей задачи — видна на мобиле (где topbar-center скрыт) */
+.story-bar {
+    display: none;
+    padding: 8px 14px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+.story-bar.active { color: var(--text); font-weight: 600; }
+
+/* Название комнаты кликабельно для ведущего (переименование «в моменте») */
+.room-title.editable { cursor: pointer; }
+.room-title.editable:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+
+/* Имена за столом: аватар над именем, имя по центру (до двух строк, на всю
+   ширину места — а не в узкой колонке рядом с аватаром, где выходило криво) */
+.seat .who {
+    flex-direction: column;
+    gap: 4px;
+    max-width: 100%;
+}
+.seat .pname {
+    white-space: normal;
+    text-align: center;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.2;
+    max-width: 100%;
+}
+
+/* Шапка бэклога: действия в ряд + кнопка закрытия (видна на мобиле) */
+.backlog-header-actions { display: flex; align-items: center; gap: 6px; }
+.backlog-close {
+    display: none;
+    width: 30px; height: 30px; flex-shrink: 0;
+    align-items: center; justify-content: center;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--muted);
+    font-size: 13px; cursor: pointer; padding: 0;
+}
+.backlog-close:hover { color: var(--text); border-color: var(--border-2); }
+
 /* =====================================================
-   Responsive
+   Responsive  (планшет → телефон)
    ===================================================== */
 @media (max-width: 900px) {
-    .room-title   { max-width: 140px; }
+    .room-title    { max-width: 140px; }
     .topbar-center { display: none; }
 }
+
+/* ---------- Телефоны и узкие планшеты ---------- */
 @media (max-width: 700px) {
-    .room-body     { flex-direction: column; }
-    .backlog-panel { width: 100%; min-width: unset; border-left: none; border-top: 1px solid var(--border); max-height: 200px; }
-    .seat          { width: 84px; }
-    .seat .card-slot { width: 60px; height: 86px; }
-    .stage         { padding: 20px 12px; gap: 20px; }
-    .topbar        { padding: 0 12px; grid-template-columns: 1fr auto; }
+    /* Топбар: высота по контенту, действия переносятся, ничего не обрезается */
+    .topbar {
+        height: auto;
+        min-height: 48px;
+        grid-template-columns: 1fr auto;
+        gap: 6px 8px;
+        padding: 8px 12px;
+    }
     .topbar-center { display: none; }
-    .deckbar       { padding: 12px 12px 16px; }
-    .deck .pcard   { width: 50px; height: 74px; }
-    .results       { padding: 18px 16px; }
+    .topbar-right  { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .room-title    { max-width: 46vw; }
     .pill          { display: none; }
+    /* Крупнее тач-цель для кнопок верхней панели */
+    .topbar-right .btn { min-height: 34px; padding: 6px 10px; }
+    .theme-toggle  { width: 34px; height: 34px; }
+
+    /* Панель модератора: переносится по строкам, крупные тач-цели */
+    .mod-panel { padding: 8px 12px; }
+    .mod-row   { gap: 8px; }
+    .mod-input, .mod-select { height: 40px; font-size: 14px; }
+    .mod-row .btn { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+    .mod-input { flex: 1 1 100%; }
+    .custom-deck-wrap { flex: 1 1 100%; }
+    .mod-select { flex: 1 1 calc(50% - 4px); }
+    .mod-sep, .mod-spacer { display: none; }
+    #setStoryBtn, #startTimerBtn, #stopTimerBtn, #applyCustomDeckBtn { flex: 0 0 auto; }
+    /* Главные действия раунда — во всю ширину и заметные */
+    #revealBtn, #resetBtn { flex: 1 1 calc(50% - 4px); }
+    #asyncToggle { flex: 1 1 100%; }
+
+    /* Показываем мобильные органы управления */
+    #modToggleBtn  { display: inline-flex; }
+    .deck-collapse { display: inline-block; }
+    .backlog-close { display: inline-flex; }
+    .deck-action:not(.hidden) { display: inline-flex; min-height: 44px; }
+    .story-bar     { display: block; }
+
+    /* Развёрнутая панель управления не должна занимать весь экран */
+    .mod-panel:not(.collapsed) { max-height: 62vh; overflow-y: auto; }
+
+    /* Тело комнаты — в столбик; стол занимает всё, бэклог — выезжающий лист снизу */
+    .room-body     { flex-direction: column; }
+    .backlog-panel {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        width: 100%; min-width: unset;
+        height: 80vh; max-height: 80vh;
+        border: none; border-top: 1px solid var(--border);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -10px 36px rgba(0, 0, 0, .5);
+        z-index: 120;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Стол: компактные места, но читаемые */
+    .stage  { padding: 18px 12px 26px; gap: 18px; }
+    .stage::before { display: none; }
+    .table  { gap: 12px; }
+    .seat   { width: 72px; }
+    .seat .card-slot { width: 54px; height: 78px; }
+    /* Кик и «сделать ведущим» всегда видны (на тач нет hover) */
+    .seat .kick,
+    .seat .promote { display: flex; }
+
+    /* Колода снизу: карты крупнее для пальца, перенос строк */
+    .deckbar     { padding: 10px 10px calc(12px + env(safe-area-inset-bottom)); }
+    .deck        { gap: 8px; }
+    .deck .pcard { width: 54px; height: 78px; }
+    /* На тач hover-подъём не нужен — мешает, оставляем только выбранную */
+    .deck .pcard:hover:not(:disabled) { transform: none; }
+    .deck .pcard.selected { transform: translateY(-8px); }
+
+    .results { padding: 18px 16px; max-width: 100%; }
+    .consensus-hero-value { font-size: 46px; }
+    .results-actions .btn { flex: 1 1 auto; }
+
+    /* Async-доска: одна колонка */
+    .async-board { grid-template-columns: 1fr; padding: 12px; gap: 10px; }
+    .async-vote-row .av { min-width: 40px; height: 42px; }
 }
+
+/* ---------- Совсем узкие экраны ---------- */
 @media (max-width: 480px) {
-    .lobby         { padding: 20px 14px; }
-    .lobby-card    { padding: 22px 18px 20px; }
-    .room-title    { font-size: 13px; max-width: 100px; }
-    #copyLinkBtn .link-text { display: none; }
+    .lobby      { padding: 20px 14px; }
+    .lobby-card { padding: 22px 18px 20px; }
+    .room-title { font-size: 13px; max-width: 40vw; }
+    .topbar     { padding: 8px 10px; }
+    /* Прячем подписи второстепенных кнопок, показываем иконки — компактный набор */
+    #copyLinkBtn .link-text,
+    #leaveRoomBtn .link-text { display: none; }
+    #copyLinkBtn .btn-ico,
+    #leaveRoomBtn .btn-ico { display: inline-flex; }
+    .topbar-right .btn { padding: 6px 9px; }
+    .mod-select { flex: 1 1 100%; }
+    .seat   { width: 64px; }
+    .seat .card-slot { width: 50px; height: 72px; }
+    .deck .pcard { width: 50px; height: 72px; }
+}
+
+.lobby-room-hint {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    margin: 0 0 4px;
 }
