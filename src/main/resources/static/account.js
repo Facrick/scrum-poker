@@ -213,7 +213,9 @@ function sessionCard(s) {
             .catch(() => toast('Не удалось скопировать'));
     });
 
-    el.querySelector('[data-export]').addEventListener('click', () => exportSession(s));
+    el.querySelector('[data-export]').addEventListener('click', () => {
+        window.open('/results.html?room=' + encodeURIComponent(s.roomId), '_blank', 'noopener');
+    });
     el.querySelector('[data-rename]').addEventListener('click', () => renameSession(s));
     el.querySelector('[data-delete]').addEventListener('click', () => deleteSession(s));
 
@@ -296,40 +298,6 @@ async function deleteSession(s) {
     } catch { toast('Не удалось удалить'); }
 }
 
-async function exportSession(s) {
-    try {
-        const res = await spAuth.fetch('/api/me/sessions/' + encodeURIComponent(s.roomId) + '/report');
-        if (res.status === 404) { toast('Данные сессии больше недоступны для экспорта'); return; }
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        buildReportCsv(data, s.roomId);
-        toast('CSV-отчёт скачан', true);
-    } catch { toast('Не удалось экспортировать'); }
-}
-
-function buildReportCsv(data, roomId) {
-    const items = data.items || [];
-    const consensusOf = it => {
-        if (!it.votes || !it.votes.length) return '';
-        return new Set(it.votes.map(v => v.value)).size === 1 ? 'Да' : 'Нет';
-    };
-    const rows = [['№', 'Задача', 'Оценка', 'Переголосований', 'Консенсус', 'Голоса']];
-    items.forEach((it, i) => {
-        const votes = (it.votes || []).map(v => `${v.name}: ${v.value}`).join('; ');
-        rows.push([i + 1, it.title, it.estimate || '', it.revotes || 0, consensusOf(it), votes]);
-    });
-    const csvCell = v => {
-        const s = String(v ?? '');
-        return (s.includes(',') || s.includes('"') || s.includes('\n'))
-            ? '"' + s.replace(/"/g, '""') + '"' : s;
-    };
-    const csv = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = (data.roomName || roomId) + '.csv'; a.click();
-    URL.revokeObjectURL(url);
-}
 
 /** Принудительно перечитать список (сбросив кэш сравнения). */
 function forceReloadSessions() {
