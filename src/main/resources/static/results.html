@@ -3,54 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Итоги сессии — Scrum Poker</title>
+    <title>Отчёт сессии — Scrum Poker</title>
     <style>
         :root {
-            --bg: #0d1117; --surface: #1c2128; --surface-2: #21262d;
+            --bg: #0d1117; --surface: #1c2128; --surface-2: #21262d; --surface-3: #30363d;
             --border: #30363d; --text: #e6edf3; --muted: #8b949e;
             --primary: #2f81f7; --success: #3fb950; --success-l: rgba(63,185,80,.12);
-            --warn: #d29922;
+            --warn: #d29922; --warn-l: rgba(210,153,34,.12); --danger: #f85149;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: "Inter", system-ui, -apple-system, sans-serif;
-            background: var(--bg); color: var(--text);
-            line-height: 1.5; -webkit-font-smoothing: antialiased;
-        }
-        .page { max-width: 760px; margin: 0 auto; padding: 40px 24px 64px; }
+        body { font-family: "Inter", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
 
-        /* ── Header ── */
-        .header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-        .header-left { flex: 1; min-width: 0; }
-        .back { font-size: 13px; color: var(--primary); text-decoration: none; display: inline-block; margin-bottom: 10px; }
-        .back:hover { text-decoration: underline; }
-        .room-title { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -.02em; line-height: 1.2; }
-        .room-id { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .page { max-width: 820px; margin: 0 auto; padding: 36px 24px 80px; }
+
+        /* Header */
+        .header { margin-bottom: 28px; }
+        .back { font-size: 13px; display: inline-block; margin-bottom: 12px; }
+        .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .room-title { font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+        .room-meta { font-size: 12px; color: var(--muted); margin-top: 5px; }
         .pdf-btn {
             flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
             background: var(--primary); color: #fff; border: none; border-radius: 8px;
             padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 600;
-            cursor: pointer; transition: opacity .15s; white-space: nowrap;
+            cursor: pointer; transition: opacity .15s; white-space: nowrap; margin-top: 4px;
         }
-        .pdf-btn:hover { opacity: .88; }
+        .pdf-btn:hover { opacity: .86; }
 
-        /* ── Summary strip ── */
-        .summary { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
-        .stat {
-            flex: 1; min-width: 110px;
-            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-            padding: 14px 16px;
-        }
+        /* Summary stats */
+        .stats { display: flex; gap: 10px; margin-bottom: 28px; flex-wrap: wrap; }
+        .stat { flex: 1; min-width: 100px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
         .stat-val { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; }
-        .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .06em; }
+        .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
 
-        /* ── Progress ── */
+        /* Progress */
         .progress-wrap { margin-bottom: 28px; }
-        .progress-track { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+        .progress-hdr { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+        .progress-track { height: 7px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
         .progress-fill { height: 100%; background: var(--success); border-radius: 99px; }
-        .progress-label { font-size: 12px; color: var(--muted); }
 
-        /* ── Table ── */
+        /* Table */
         .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         thead th {
@@ -59,48 +53,59 @@
             font-size: 11px; font-weight: 600; color: var(--muted);
             text-transform: uppercase; letter-spacing: .06em;
         }
-        tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
-        tbody tr:last-child td { border-bottom: none; }
+        tbody tr { border-bottom: 1px solid var(--border); }
+        tbody tr:last-child { border-bottom: none; }
         tbody tr:hover td { background: var(--surface); }
-        .num { color: var(--muted); font-size: 12px; width: 32px; }
-        .task-title { font-weight: 500; }
-        .est-chip {
-            display: inline-block; background: var(--success-l); color: var(--success);
-            border: 1px solid rgba(63,185,80,.25); border-radius: 6px;
-            padding: 2px 10px; font-weight: 700; font-size: 13px; white-space: nowrap;
-        }
-        .no-est { color: var(--muted); font-size: 13px; }
+        td { padding: 11px 14px; vertical-align: top; color: var(--text); }
+        .td-num { color: var(--muted); font-size: 12px; width: 36px; }
+        .td-task { font-weight: 500; }
+        .td-est { width: 80px; }
+        .td-votes { width: 240px; }
+        .td-consensus { width: 100px; }
 
-        /* ── States ── */
+        .est-chip { display: inline-block; background: var(--success-l); color: var(--success); border: 1px solid rgba(63,185,80,.25); border-radius: 6px; padding: 2px 10px; font-weight: 700; font-size: 13px; }
+        .no-est { color: var(--muted); }
+
+        .consensus-yes { color: var(--success); font-weight: 600; font-size: 12px; }
+        .consensus-no  { color: var(--warn);    font-weight: 600; font-size: 12px; }
+
+        .votes-list { display: flex; flex-wrap: wrap; gap: 4px; }
+        .vote-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; background: var(--surface-3); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; color: var(--muted); }
+        .vote-chip b { color: var(--text); font-weight: 700; }
+        .revote-badge { display: inline-block; background: var(--warn-l); color: var(--warn); border: 1px solid rgba(210,153,34,.25); border-radius: 5px; padding: 0 6px; font-size: 11px; font-weight: 600; margin-left: 4px; }
+
+        /* States */
         .loading, .error { text-align: center; padding: 80px 20px; color: var(--muted); font-size: 15px; }
         .error strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 8px; }
 
-        /* ── Print styles ── */
+        /* Print */
         @media print {
-            @page { size: A4; margin: 18mm 16mm; }
+            @page { size: A4; margin: 15mm 14mm; }
             body { background: #fff !important; color: #111 !important; }
             .back, .pdf-btn { display: none !important; }
             .page { padding: 0; max-width: 100%; }
             .room-title { color: #111; font-size: 20px; }
-            .room-id { color: #666; }
-            .stat { background: #f4f6f9 !important; border-color: #ddd !important; break-inside: avoid; }
+            .room-meta { color: #666; }
+            .stat { background: #f5f5f5 !important; border-color: #ddd !important; break-inside: avoid; }
             .stat-val { color: #111 !important; }
             .stat-lbl { color: #666 !important; }
-            .progress-track { background: #e0e0e0 !important; }
-            .progress-fill { background: #2e7d32 !important; }
-            .progress-label { color: #666 !important; }
-            .table-wrap { border-color: #ddd !important; }
-            thead th { background: #f4f6f9 !important; color: #444 !important; border-bottom-color: #ddd !important; }
-            tbody td { border-bottom-color: #eee !important; color: #111 !important; }
+            .progress-track { background: #eee !important; }
+            .progress-fill { background: #388e3c !important; }
+            .progress-hdr { color: #666 !important; }
+            .table-wrap { border-color: #ddd !important; page-break-inside: auto; }
+            thead th { background: #f5f5f5 !important; color: #444 !important; border-bottom-color: #ddd !important; }
+            tbody tr { border-bottom-color: #eee !important; break-inside: avoid; }
             tbody tr:hover td { background: transparent !important; }
-            .num { color: #888 !important; }
+            td { color: #111 !important; }
+            .td-num { color: #888 !important; }
             .est-chip { background: #e8f5e9 !important; color: #2e7d32 !important; border-color: #a5d6a7 !important; }
-            .no-est { color: #999 !important; }
-            .print-footer {
-                display: block !important;
-                margin-top: 24px; font-size: 11px; color: #aaa;
-                border-top: 1px solid #eee; padding-top: 8px;
-            }
+            .no-est { color: #aaa !important; }
+            .vote-chip { background: #f0f0f0 !important; border-color: #ddd !important; color: #666 !important; }
+            .vote-chip b { color: #111 !important; }
+            .consensus-yes { color: #2e7d32 !important; }
+            .consensus-no  { color: #e65100 !important; }
+            .revote-badge { background: #fff8e1 !important; color: #e65100 !important; border-color: #ffcc80 !important; }
+            .print-footer { display: block !important; margin-top: 20px; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 6px; }
         }
         .print-footer { display: none; }
     </style>
@@ -108,88 +113,139 @@
 <body>
 <div class="page">
     <div class="header">
-        <div class="header-left">
-            <a class="back" href="/account">← Кабинет</a>
-            <div class="room-title" id="roomTitle">Загрузка…</div>
-            <div class="room-id" id="roomId"></div>
+        <a class="back" href="/account">← Кабинет</a>
+        <div class="title-row">
+            <div>
+                <div class="room-title" id="roomTitle">Загрузка…</div>
+                <div class="room-meta" id="roomMeta"></div>
+            </div>
+            <button class="pdf-btn" id="pdfBtn" onclick="window.print()" style="display:none">⬇ Сохранить PDF</button>
         </div>
-        <button class="pdf-btn" onclick="window.print()" id="pdfBtn" style="display:none">
-            ⬇ Сохранить PDF
-        </button>
     </div>
     <div id="content"><div class="loading">Загрузка данных сессии…</div></div>
     <div class="print-footer" id="printFooter"></div>
 </div>
 <script>
+const params = new URLSearchParams(location.search);
+
 (async () => {
-    const params = new URLSearchParams(location.search);
     const roomId = params.get('room');
     if (!roomId) { showError('Не указан код комнаты'); return; }
-    document.getElementById('roomId').textContent = 'Код: ' + roomId;
 
-    try {
-        const res = await fetch('/api/public/sessions/' + encodeURIComponent(roomId));
-        if (res.status === 404) { showError('Сессия не найдена или уже удалена'); return; }
-        if (!res.ok) throw new Error();
-        render(await res.json(), roomId);
-    } catch { showError('Не удалось загрузить данные сессии'); }
+    // Пробуем авторизованный эндпоинт (полные данные с голосами),
+    // fallback на публичный (только оценки).
+    let data = null;
+    const token = typeof spAuth !== 'undefined' ? spAuth.token() : (localStorage.getItem('sp_token') || '');
+    if (token) {
+        try {
+            const r = await fetch('/api/me/sessions/' + encodeURIComponent(roomId) + '/report',
+                { headers: { Authorization: 'Bearer ' + token } });
+            if (r.ok) data = await r.json();
+        } catch {}
+    }
+    if (!data) {
+        try {
+            const r = await fetch('/api/public/sessions/' + encodeURIComponent(roomId));
+            if (r.status === 404) { showError('Сессия не найдена или уже удалена'); return; }
+            if (!r.ok) throw new Error();
+            const pub = await r.json();
+            // Нормализуем публичный формат к общему
+            data = { roomName: pub.roomName, items: (pub.items || []).map(i => ({ ...i, votes: [], revotes: 0 })) };
+        } catch { showError('Не удалось загрузить данные сессии'); return; }
+    }
+
+    render(data, roomId);
 })();
 
 function render(data, roomId) {
     const title = data.roomName || roomId;
     document.getElementById('roomTitle').textContent = title;
-    document.title = title + ' — Итоги';
+    document.title = title + ' — Отчёт';
+    document.getElementById('roomMeta').textContent = 'Код: ' + roomId + ' · ' + fmtDate(new Date().toISOString());
     document.getElementById('pdfBtn').style.display = '';
 
     const items = data.items || [];
-    const estimated = items.filter(i => i.estimate).length;
+    const estimated = items.filter(i => i.estimate && i.estimate !== '').length;
     const total = items.length;
     const pct = total > 0 ? Math.round(estimated / total * 100) : 0;
-    const numericEsts = items.map(i => parseFloat(i.estimate)).filter(v => !isNaN(v));
-    const sum = numericEsts.reduce((a, b) => a + b, 0);
 
-    const now = new Date().toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    document.getElementById('printFooter').textContent = `Scrum Poker · ${title} · ${now}`;
+    const numEsts = items.map(i => parseFloat(i.estimate)).filter(v => !isNaN(v));
+    const sum = numEsts.reduce((a, b) => a + b, 0);
 
-    let html = `
-    <div class="summary">
+    const withVotes = items.filter(i => i.votes && i.votes.length > 0);
+    const consensusCount = withVotes.filter(i => new Set(i.votes.map(v => v.value)).size === 1).length;
+    const consensusRate = withVotes.length ? Math.round(consensusCount / withVotes.length * 100) : null;
+    const totalRevotes = items.reduce((n, i) => n + (i.revotes || 0), 0);
+
+    document.getElementById('printFooter').textContent =
+        'Scrum Poker · ' + title + ' · ' + fmtDate(new Date().toISOString());
+
+    let html = `<div class="stats">
         <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Задач</div></div>
         <div class="stat"><div class="stat-val">${estimated}</div><div class="stat-lbl">Оценено</div></div>
         <div class="stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Прогресс</div></div>
-        ${numericEsts.length > 0 ? `<div class="stat"><div class="stat-val">${Math.round(sum * 10) / 10}</div><div class="stat-lbl">Σ поинтов</div></div>` : ''}
+        ${numEsts.length ? `<div class="stat"><div class="stat-val">${Math.round(sum * 10) / 10}</div><div class="stat-lbl">Σ поинтов</div></div>` : ''}
+        ${consensusRate !== null ? `<div class="stat"><div class="stat-val">${consensusRate}%</div><div class="stat-lbl">Консенсус</div></div>` : ''}
+        ${totalRevotes > 0 ? `<div class="stat"><div class="stat-val">${totalRevotes}</div><div class="stat-lbl">Переголосований</div></div>` : ''}
     </div>
     <div class="progress-wrap">
-        <div class="progress-label">Оценено ${estimated} из ${total}</div>
+        <div class="progress-hdr"><span>Прогресс оценки</span><span>${estimated} / ${total}</span></div>
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
     </div>
-    <div class="table-wrap">
-    <table>
-        <thead><tr><th class="num">#</th><th>Задача</th><th>Оценка</th></tr></thead>
+    <div class="table-wrap"><table>
+        <thead><tr>
+            <th class="td-num">#</th>
+            <th>Задача</th>
+            <th class="td-est">Оценка</th>
+            <th class="td-consensus">Консенсус</th>
+            <th class="td-votes">Голоса</th>
+        </tr></thead>
         <tbody>`;
 
     items.forEach((it, i) => {
-        const est = it.estimate
-            ? `<span class="est-chip">${esc(it.estimate)}</span>`
-            : `<span class="no-est">—</span>`;
-        html += `<tr><td class="num">${i + 1}</td><td class="task-title">${esc(it.title)}</td><td>${est}</td></tr>`;
+        const est = it.estimate ? `<span class="est-chip">${esc(it.estimate)}</span>` : `<span class="no-est">—</span>`;
+        const revBadge = it.revotes > 0 ? `<span class="revote-badge" title="Переголосований">↻${it.revotes}</span>` : '';
+
+        let consensus = '';
+        if (it.votes && it.votes.length > 0) {
+            const unique = new Set(it.votes.map(v => v.value)).size;
+            consensus = unique === 1
+                ? `<span class="consensus-yes">✓ Да</span>`
+                : `<span class="consensus-no">✗ Нет</span>`;
+        }
+
+        let votesHtml = '<span class="no-est">—</span>';
+        if (it.votes && it.votes.length > 0) {
+            votesHtml = `<div class="votes-list">` +
+                it.votes.map(v => `<span class="vote-chip">${esc(v.name)} <b>${esc(v.value)}</b></span>`).join('') +
+                `</div>`;
+        }
+
+        html += `<tr>
+            <td class="td-num">${i + 1}</td>
+            <td class="td-task">${esc(it.title)}${revBadge}</td>
+            <td class="td-est">${est}</td>
+            <td class="td-consensus">${consensus}</td>
+            <td class="td-votes">${votesHtml}</td>
+        </tr>`;
     });
 
     html += `</tbody></table></div>`;
     document.getElementById('content').innerHTML = html;
 
-    if (params.get('print') === '1') setTimeout(() => window.print(), 400);
+    if (params.get('print') === '1') setTimeout(() => window.print(), 500);
 }
 
 function showError(msg) {
-    document.getElementById('content').innerHTML =
-        `<div class="error"><strong>Ошибка</strong>${esc(msg)}</div>`;
+    document.getElementById('content').innerHTML = `<div class="error"><strong>Ошибка</strong>${esc(msg)}</div>`;
 }
 
-const params = new URLSearchParams(location.search);
+function fmtDate(iso) {
+    return new Date(iso).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
 
 function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c =>
-        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 </script>
 </body>

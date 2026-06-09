@@ -147,6 +147,36 @@ public class PokerController {
         broadcast(room);
     }
 
+    /** Переход к следующей неоценённой задаче бэклога; если таких нет — просто сбрасывает раунд. */
+    @MessageMapping("/room/{roomId}/next")
+    public void next(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
+                     SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null) return;
+        java.util.List<BacklogItem> backlog = room.getBacklog();
+        String activeId = room.getActiveItemId();
+        int activeIdx = -1;
+        for (int i = 0; i < backlog.size(); i++) {
+            if (backlog.get(i).getId().equals(activeId)) { activeIdx = i; break; }
+        }
+        // Ищем следующую неоценённую задачу, начиная с activeIdx+1, затем с начала
+        BacklogItem next = null;
+        for (int i = activeIdx + 1; i < backlog.size(); i++) {
+            if (backlog.get(i).getEstimate() == null) { next = backlog.get(i); break; }
+        }
+        if (next == null) {
+            for (int i = 0; i < activeIdx && i < backlog.size(); i++) {
+                if (backlog.get(i).getEstimate() == null) { next = backlog.get(i); break; }
+            }
+        }
+        if (next != null) {
+            room.setActiveItemId(next.getId());
+            room.setCurrentStory(next.getTitle());
+        }
+        room.resetRound();
+        broadcast(room);
+    }
+
     @MessageMapping("/room/{roomId}/story")
     public void setStory(@DestinationVariable String roomId, @Payload Messages.SetStoryMessage msg,
                          SimpMessageHeaderAccessor headers) {
@@ -211,7 +241,21 @@ public class PokerController {
             room.getBacklog().stream()
                     .filter(i -> i.getId().equals(room.getActiveItemId()))
                     .findFirst()
-                    .ifPresent(i -> i.setEstimate(est));
+                    .ifPresent(item -> {
+                        // Если у задачи уже были голоса — это переголосование
+                        if (!item.getVotes().isEmpty()) item.incrementRevotes();
+                        // Сохраняем голоса участников для отчёта
+                        java.util.List<com.scrumpoker.model.BacklogItem.VoteRecord> voteRecords =
+                                room.getParticipants().stream()
+                                        .filter(p -> p.getRole() != com.scrumpoker.model.Participant.Role.OBSERVER
+                                                && p.getVote() != null)
+                                        .sorted(java.util.Comparator.comparing(com.scrumpoker.model.Participant::getName,
+                                                String.CASE_INSENSITIVE_ORDER))
+                                        .map(p -> new com.scrumpoker.model.BacklogItem.VoteRecord(p.getName(), p.getVote()))
+                                        .collect(java.util.stream.Collectors.toList());
+                        item.setVotes(voteRecords);
+                        item.setEstimate(est);
+                    });
         }
         broadcast(room);
     }
@@ -239,6 +283,23 @@ public class PokerController {
     }
 
     // ---- Бэклог ----
+
+    @MessageMapping("/room/{roomId}/backlog/import")
+    public void importBacklog(@DestinationVariable String roomId, @Payload Messages.ImportBacklogMessage msg,
+                              SimpMessageHeaderAccessor headers) {
+        Room room = requireModerator(roomId, headers);
+        if (room == null || msg.titles() == null) return;
+        int added = 0;
+        for (String title : msg.titles()) {
+            if (title == null || title.isBlank()) continue;
+            String t = title.strip();
+            if (t.length() > 120) t = t.substring(0, 120);
+            if (room.getBacklog().size() >= 200) break;
+            room.getBacklog().add(new BacklogItem(t));
+            added++;
+        }
+        if (added > 0) broadcast(room);
+    }
 
     @MessageMapping("/room/{roomId}/backlog/add")
     public void addBacklogItem(@DestinationVariable String roomId, @Payload Messages.AddBacklogItemMessage msg,

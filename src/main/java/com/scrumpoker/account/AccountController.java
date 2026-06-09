@@ -170,8 +170,10 @@ public class AccountController {
                     Map<String, Object> m = new java.util.LinkedHashMap<>();
                     m.put("title", i.getTitle());
                     m.put("estimate", i.getEstimate() != null ? i.getEstimate() : "");
-                    m.put("revotes", 0);
-                    m.put("votes", List.of());
+                    m.put("revotes", i.getRevotes());
+                    m.put("votes", i.getVotes().stream()
+                            .map(v -> Map.of("name", v.name(), "value", v.value()))
+                            .toList());
                     return m;
                 })
                 .toList();
