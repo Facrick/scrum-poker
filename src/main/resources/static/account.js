@@ -199,7 +199,7 @@ function sessionCard(s) {
                 ? `<a class="sess-enter" href="${esc(inviteUrl)}&host=1">Войти в сессию</a>`
                 : ''}
             <button class="act-btn" data-copy="${esc(inviteUrl)}" title="Скопировать ссылку-приглашение">🔗</button>
-            <a class="act-btn" href="/results?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊</a>
+            <a class="act-btn" href="/results.html?room=${esc(s.roomId)}" target="_blank" rel="noopener" title="Публичная страница итогов">📊</a>
             <button class="act-btn" data-export title="Экспорт отчёта в Excel">⬇</button>
             <button class="act-btn" data-rename title="Переименовать">✎</button>
             <button class="act-btn act-danger" data-delete title="${s.alive ? 'Завершить и удалить' : 'Удалить из истории'}">🗑</button>
@@ -302,64 +302,33 @@ async function exportSession(s) {
         if (res.status === 404) { toast('Данные сессии больше недоступны для экспорта'); return; }
         if (!res.ok) throw new Error();
         const data = await res.json();
-        buildReportXlsx(data, s.roomId);
-        toast('Excel-отчёт скачан', true);
+        buildReportCsv(data, s.roomId);
+        toast('CSV-отчёт скачан', true);
     } catch { toast('Не удалось экспортировать'); }
 }
 
-/** Собирает Excel-отчёт по сессии: лист «Сводка» + лист «Голоса по задачам». */
-function buildReportXlsx(data, roomId) {
+function buildReportCsv(data, roomId) {
     const items = data.items || [];
-    const isNum = v => v != null && v !== '' && isFinite(parseFloat(v));
-    const estimated = items.filter(i => i.estimate != null && i.estimate !== '').length;
-    const sumPoints = items.reduce((n, i) => n + (isNum(i.estimate) ? parseFloat(i.estimate) : 0), 0);
     const consensusOf = it => {
-        if (!it.votes || it.votes.length === 0) return '';
-        const vals = new Set(it.votes.map(v => v.value));
-        return vals.size === 1 ? 'Да' : 'Нет';
+        if (!it.votes || !it.votes.length) return '';
+        return new Set(it.votes.map(v => v.value)).size === 1 ? 'Да' : 'Нет';
     };
-    const withVotes = items.filter(i => i.votes && i.votes.length);
-    const consensusCount = withVotes.filter(i => new Set(i.votes.map(v => v.value)).size === 1).length;
-    const consensusRate = withVotes.length ? Math.round(consensusCount / withVotes.length * 100) : 0;
-    const totalRevotes = items.reduce((n, i) => n + (i.revotes || 0), 0);
-    const avgRevotes = estimated ? Math.round(totalRevotes / estimated * 100) / 100 : 0;
-
-    // ── Лист «Сводка» ──
-    const summary = [
-        ['Сессия', data.roomName || roomId],
-        ['Код комнаты', roomId],
-        ['Дата выгрузки', new Date().toLocaleString('ru-RU')],
-        ['Всего задач', items.length],
-        ['Оценено', estimated],
-        ['Сумма оценок (числовых)', Math.round(sumPoints * 10) / 10],
-        ['Доля консенсуса', consensusRate + '%'],
-        ['Сред. переголосований на задачу', avgRevotes],
-        [],
-        ['№', 'Задача', 'Оценка', 'Переголосований', 'Консенсус', 'Голоса']
-    ];
+    const rows = [['№', 'Задача', 'Оценка', 'Переголосований', 'Консенсус', 'Голоса']];
     items.forEach((it, i) => {
-        const votesStr = (it.votes || []).map(v => `${v.name}: ${v.value}`).join('; ');
-        summary.push([i + 1, it.title, it.estimate || '', it.revotes || 0, consensusOf(it), votesStr]);
+        const votes = (it.votes || []).map(v => `${v.name}: ${v.value}`).join('; ');
+        rows.push([i + 1, it.title, it.estimate || '', it.revotes || 0, consensusOf(it), votes]);
     });
-    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
-    wsSummary['!cols'] = [{ wch: 4 }, { wch: 40 }, { wch: 8 }, { wch: 16 }, { wch: 11 }, { wch: 50 }];
-
-    // ── Лист «Голоса» (по строке на голос) ──
-    const votesRows = [['Задача', 'Оценка', 'Участник', 'Голос']];
-    items.forEach(it => {
-        if (it.votes && it.votes.length) {
-            it.votes.forEach(v => votesRows.push([it.title, it.estimate || '', v.name, v.value]));
-        } else {
-            votesRows.push([it.title, it.estimate || '', '—', '—']);
-        }
-    });
-    const wsVotes = XLSX.utils.aoa_to_sheet(votesRows);
-    wsVotes['!cols'] = [{ wch: 40 }, { wch: 8 }, { wch: 24 }, { wch: 10 }];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка');
-    XLSX.utils.book_append_sheet(wb, wsVotes, 'Голоса');
-    XLSX.writeFile(wb, (data.roomName || roomId) + '.xlsx');
+    const csvCell = v => {
+        const s = String(v ?? '');
+        return (s.includes(',') || s.includes('"') || s.includes('\n'))
+            ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const csv = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = (data.roomName || roomId) + '.csv'; a.click();
+    URL.revokeObjectURL(url);
 }
 
 /** Принудительно перечитать список (сбросив кэш сравнения). */
