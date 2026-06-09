@@ -7,10 +7,22 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.client.userinfo.DefaultOidcUserService;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -33,13 +45,6 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
 
-            // Аутентификация stateless — её держит ТОЛЬКО JWT в заголовке.
-            // SecurityContext храним в атрибуте запроса, а НЕ в сессии: иначе
-            // oauth2Login по умолчанию сохранял бы контекст в HttpSession, и вход
-            // держался бы на JSESSIONID — тогда очистка токена при выходе не
-            // разлогинивала бы пользователя (баг: бадж висел после "Выйти").
-            // Сессия (IF_REQUIRED) нужна лишь OAuth2 для хранения authorization_request
-            // на время редиректа на провайдера; держать вход она больше не будет.
             .sessionManagement(sm -> sm
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
@@ -48,23 +53,20 @@ public class SecurityConfig {
             )
 
             .authorizeHttpRequests(auth -> auth
-                // ЛК модератора требует авторизации (JWT)
                 .requestMatchers("/api/me", "/api/me/**").authenticated()
-                // /account — статическая страница SPA, она сама проверит токен и
-                // редиректнёт на /login, если его нет; поэтому оставляем публичной.
-                // Всё остальное публично — анонимные участники не трогаются
                 .anyRequest().permitAll()
             )
 
-            // JWT-фильтр до стандартного логина: восстанавливает аутентификацию из Bearer-токена.
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
-                .userInfoEndpoint(ui -> ui.userService(oauthUserService))
-                // После успешной авторизации выпускаем JWT и передаём его SPA через
-                // фрагмент URL (#token=...). Фрагмент не уходит на сервер и не попадает
-                // в логи/Referer; статическая страница перекладывает его в localStorage.
+                .userInfoEndpoint(ui -> ui
+                    // GitHub (plain OAuth2)
+                    .userService(oauthUserService)
+                    // Google (OIDC — openid scope) — нужен отдельный сервис
+                    .oidcUserService(buildOidcUserService())
+                )
                 .successHandler((req, res, auth) -> {
                     OAuth2User principal = (OAuth2User) auth.getPrincipal();
                     String userId = principal.getAttribute("_userId");
@@ -74,7 +76,6 @@ public class SecurityConfig {
                 .failureUrl("/login?error=true")
             )
 
-            // Единый entry point: API → 401 JSON, остальное → редирект на /login.
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, authEx) -> {
                     if (req.getRequestURI().startsWith("/api/")) {
@@ -86,5 +87,50 @@ public class SecurityConfig {
             );
 
         return http.build();
+    }
+
+    /**
+     * OIDC-обёртка для Google: делегирует загрузку пользователя стандартному
+     * {@link DefaultOidcUserService}, затем вызывает нашу логику upsert'а и
+     * возвращает {@link OidcUser}, у которого {@code getAttribute("_userId")}
+     * работает корректно.
+     *
+     * Без этой обёртки Spring Security использует {@link DefaultOidcUserService}
+     * напрямую, минуя наш {@link OAuthUserService}, и {@code _userId} не ставится
+     * → {@code jwtService.issue(null)} бросает исключение → 500.
+     */
+    private OidcUserService buildOidcUserService() {
+        DefaultOidcUserService delegate = new DefaultOidcUserService();
+        return new OidcUserService() {
+            @Override
+            public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
+                OidcUser oidcUser = delegate.loadUser(request);
+                // Получаем _userId через ту же логику, что и для GitHub
+                OAuth2User enriched = oauthUserService.processUser("google", oidcUser);
+                String userId = enriched.getAttribute("_userId");
+                // Оборачиваем в OidcUser, добавляя _userId в атрибуты
+                return new EnrichedOidcUser(oidcUser, userId);
+            }
+        };
+    }
+
+    /**
+     * {@link OidcUser}, который делегирует всё оригинальному пользователю,
+     * но добавляет {@code _userId} в {@link #getAttributes()}.
+     */
+    private static class EnrichedOidcUser extends DefaultOidcUser {
+        private final Map<String, Object> enrichedAttrs;
+
+        EnrichedOidcUser(OidcUser original, String userId) {
+            super(original.getAuthorities(), original.getIdToken(),
+                  original.getUserInfo(), "sub");
+            this.enrichedAttrs = new HashMap<>(original.getAttributes());
+            this.enrichedAttrs.put("_userId", userId);
+        }
+
+        @Override
+        public Map<String, Object> getAttributes() {
+            return enrichedAttrs;
+        }
     }
 }
