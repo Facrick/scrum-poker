@@ -24,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Controller
 public class PokerController {
 
-    // Не более 60 WS-сообщений на сессию за 10 секунд (защита от флуда голосами/таймером).
-    private static final int WS_LIMIT = 60;
+    // Не более 20 WS-сообщений на сессию за 10 секунд (защита от флуда голосами/таймером).
+    private static final int WS_LIMIT = 20;
     private static final long WS_WINDOW_MS = 10_000;
 
     private final RoomService roomService;

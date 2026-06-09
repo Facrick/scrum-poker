@@ -9,6 +9,7 @@ import com.scrumpoker.model.Room;
 import com.scrumpoker.persistence.RoomRepository;
 import com.scrumpoker.persistence.RoomSnapshot;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class RoomService {
@@ -30,6 +35,19 @@ public class RoomService {
     private static final Logger log = LoggerFactory.getLogger(RoomService.class);
     private static final String ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
     private static final int MAX_PARTICIPANTS = 100;
+
+    /**
+     * Дебаунс записи в БД: изменения накапливаются 500мс, затем одна запись.
+     * Это позволяет при пачке кликов (голоса, смена колоды и т.д.) делать
+     * 1 DB-запись вместо N, не затрагивая real-time рассылку по WebSocket.
+     */
+    private static final long PERSIST_DEBOUNCE_MS = 500;
+    private final ScheduledExecutorService persistScheduler = Executors.newScheduledThreadPool(1, r -> {
+        Thread t = new Thread(r, "persist-debounce");
+        t.setDaemon(true);
+        return t;
+    });
+    private final Map<String, ScheduledFuture<?>> pendingPersist = new ConcurrentHashMap<>();
 
     private final SecureRandom random = new SecureRandom();
     private final ObjectMapper objectMapper;
@@ -104,8 +122,30 @@ public class RoomService {
     private final java.util.concurrent.atomic.AtomicInteger persistFailures =
             new java.util.concurrent.atomic.AtomicInteger();
 
-    /** Сохранить снимок комнаты в БД. Вызывается при каждом broadcast(). */
+    /**
+     * Запланировать сохранение комнаты в БД через PERSIST_DEBOUNCE_MS.
+     * Если за это время придут новые изменения — предыдущий таймер отменяется
+     * и отсчёт начинается заново. Итого: при «пачке» кликов — одна DB-запись.
+     * WebSocket-рассылка клиентам происходит в PokerController сразу, не ждёт персиста.
+     */
     public void persistRoom(Room room) {
+        ScheduledFuture<?> prev = pendingPersist.put(room.getId(),
+                persistScheduler.schedule(() -> {
+                    pendingPersist.remove(room.getId());
+                    doPersist(room);
+                }, PERSIST_DEBOUNCE_MS, TimeUnit.MILLISECONDS));
+        if (prev != null) prev.cancel(false);
+    }
+
+    /** Немедленная запись — используется при эвикции и остановке сервера. */
+    private void persistRoomNow(Room room) {
+        ScheduledFuture<?> pending = pendingPersist.remove(room.getId());
+        if (pending != null) pending.cancel(false);
+        doPersist(room);
+    }
+
+    /** Фактическая запись в БД (вызывается из фонового потока или напрямую). */
+    private void doPersist(Room room) {
         try {
             String json = objectMapper.writeValueAsString(RoomSnapshot.from(room));
             roomRepository.save(room.getId(), json);
@@ -116,7 +156,6 @@ public class RoomService {
                     room.getId(), n, e.getMessage());
             if (n == 1) log.error("Полная трассировка первого сбоя персистентности:", e);
         }
-        // История сессии обновляется независимо, только для комнат модераторов
         if (room.getOwnerUserId() != null) {
             try {
                 persistSessionHistory(room);
@@ -124,6 +163,17 @@ public class RoomService {
                 log.warn("Не удалось обновить историю сессии {}: {}", room.getId(), e.getMessage());
             }
         }
+    }
+
+    /**
+     * При graceful shutdown — сбрасываем все отложенные записи, чтобы не потерять
+     * изменения, которые не успели записаться за 500мс до остановки.
+     */
+    @PreDestroy
+    public void flushPendingPersists() {
+        log.info("Сброс {} отложенных записей комнат перед остановкой...", pendingPersist.size());
+        rooms.values().forEach(this::persistRoomNow);
+        persistScheduler.shutdownNow();
     }
 
     private void persistSessionHistory(Room room) {
