@@ -21,8 +21,6 @@
         <java.version>17</java.version>
         <allure.version>2.27.0</allure.version>
         <aspectj.version>1.9.21</aspectj.version>
-        <!-- Метка сборки → версия статических ассетов (?v=...), см. maven-antrun-plugin -->
-        <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
     </properties>
 
     <dependencies>
@@ -84,24 +82,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
         </dependency>
-        <!-- JWT: stateless-аутентификация ЛК (Railway режет сессии/куки при рестартах) -->
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -109,43 +89,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <!--
-              Авто-версионирование статических ассетов (#9): после копирования
-              ресурсов переписываем ?v=... у локальных .js/.css на метку сборки.
-              Регулярка трогает только href/src ассетов — инлайн-CSS (@keyframes,
-              @media) не затрагивается. Избавляет от ручных бампов ?v=N навсегда.
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>asset-versioning</id>
-                        <phase>process-classes</phase>
-                        <goals><goal>run</goal></goals>
-                        <configuration>
-                            <target>
-                                <replaceregexp flags="g" byline="true"
-                                    match="(href|src)=&quot;([^&quot;:]+\.(?:js|css))(\?v=[^&quot;]*)?&quot;"
-                                    replace="\1=&quot;\2?v=${maven.build.timestamp}&quot;">
-                                    <fileset dir="${project.build.outputDirectory}/static" includes="**/*.html"/>
-                                </replaceregexp>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- E2E-исходники (Playwright) исключены из обычной компиляции тестов,
-                 чтобы прод-сборка не тянула тяжёлый driver-bundle. Включаются профилем e2e. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <testExcludes>
-                        <testExclude>**/e2e/**</testExclude>
-                    </testExcludes>
-                </configuration>
             </plugin>
             <!-- Surefire: пишем результаты в формате Allure + AspectJ для @Step/@Attachment -->
             <plugin>
@@ -158,9 +101,6 @@
                     <systemPropertyVariables>
                         <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
                     </systemPropertyVariables>
-                    <!-- E2E (Playwright) требуют браузера — по умолчанию исключены.
-                         Запуск: mvn -Pe2e test -->
-                    <excludedGroups>e2e</excludedGroups>
                 </configuration>
                 <dependencies>
                     <dependency>
@@ -204,36 +144,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <!-- E2E-прогон: mvn -Pe2e test (поднимает приложение и гоняет Playwright) -->
-        <profile>
-            <id>e2e</id>
-            <dependencies>
-                <dependency>
-                    <groupId>com.microsoft.playwright</groupId>
-                    <artifactId>playwright</artifactId>
-                    <version>1.44.0</version>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
-            <build>
-                <plugins>
-                    <!-- В e2e-прогоне компилируем все тесты, включая e2e -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <configuration combine.self="override"/>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration combine.self="override">
-                            <groups>e2e</groups>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

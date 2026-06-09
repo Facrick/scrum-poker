@@ -14,6 +14,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
+import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.messaging.support.MessageHeaderAccessor;
+
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,24 +31,14 @@ public class PokerController {
     private final RoomService roomService;
     private final SimpMessagingTemplate messaging;
     private final RateLimiter rateLimiter;
-    private final com.scrumpoker.config.JwtService jwtService;
 
     // sessionId -> (roomId, participantId) для авторизации и обработки отключений.
     private final Map<String, String[]> sessions = new ConcurrentHashMap<>();
 
-    public PokerController(RoomService roomService, SimpMessagingTemplate messaging,
-                          RateLimiter rateLimiter, com.scrumpoker.config.JwtService jwtService) {
+    public PokerController(RoomService roomService, SimpMessagingTemplate messaging, RateLimiter rateLimiter) {
         this.roomService = roomService;
         this.messaging = messaging;
         this.rateLimiter = rateLimiter;
-        this.jwtService = jwtService;
-    }
-
-    /** true, если в join передан валидный JWT владельца ЭТОЙ комнаты. */
-    private boolean isOwner(Room room, Messages.JoinMessage msg) {
-        if (msg.token() == null || msg.token().isBlank() || room.getOwnerUserId() == null) return false;
-        String userId = jwtService.parseUserId(msg.token());
-        return userId != null && userId.equals(room.getOwnerUserId());
     }
 
     @MessageMapping("/room/{roomId}/join")
@@ -66,14 +59,20 @@ public class PokerController {
 
         // Вся логика find-or-create синхронизирована по комнате, чтобы два
         // одновременных join'а не создали дубль и не получили один participantId.
-        boolean owner = isOwner(room, msg);
-
         synchronized (room) {
             // 1. Реконнект по сохранённому participantId.
             if (msg.existingId() != null && !msg.existingId().isBlank()) {
                 Participant existing = room.getParticipant(msg.existingId());
                 if (existing != null) {
-                    if (owner) existing.setRole(Participant.Role.MODERATOR); // владелец всегда ведущий
+                    // Если в комнате уже есть онлайн-модератор (другой) — понижаем до PLAYER,
+                    // чтобы не создавать двух модераторов при реконнекте старого.
+                    if (existing.getRole() == Participant.Role.MODERATOR) {
+                        boolean anotherModOnline = room.getParticipants().stream()
+                                .anyMatch(p -> p.isOnline()
+                                        && p.getRole() == Participant.Role.MODERATOR
+                                        && !p.getId().equals(existing.getId()));
+                        if (anotherModOnline) existing.setRole(Participant.Role.PLAYER);
+                    }
                     bindSession(sessionId, room, existing);
                     broadcast(room);
                     return Map.of("participantId", existing.getId(), "role", existing.getRole().name());
@@ -85,7 +84,13 @@ public class PokerController {
                     .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
                     .findFirst().orElse(null);
             if (byName != null) {
-                if (owner) byName.setRole(Participant.Role.MODERATOR);
+                if (byName.getRole() == Participant.Role.MODERATOR) {
+                    boolean anotherModOnline = room.getParticipants().stream()
+                            .anyMatch(p -> p.isOnline()
+                                    && p.getRole() == Participant.Role.MODERATOR
+                                    && !p.getId().equals(byName.getId()));
+                    if (anotherModOnline) byName.setRole(Participant.Role.PLAYER);
+                }
                 bindSession(sessionId, room, byName);
                 broadcast(room);
                 return Map.of("participantId", byName.getId(), "role", byName.getRole().name());
@@ -98,7 +103,7 @@ public class PokerController {
                     .toList()
                     .forEach(room::removeParticipant);
 
-            Participant.Role role = owner ? Participant.Role.MODERATOR : parseRole(msg.role());
+            Participant.Role role = parseRole(msg.role());
             Participant p;
             try {
                 p = roomService.join(room, cleanName, role);
@@ -133,109 +138,11 @@ public class PokerController {
         broadcast(room);
     }
 
-    // ───────────── Async-оценка (#3) ─────────────
-
-    @MessageMapping("/room/{roomId}/async")
-    public void setAsyncMode(@DestinationVariable String roomId, @Payload Messages.AsyncModeMessage msg,
-                             SimpMessageHeaderAccessor headers) {
-        Room room = requireModerator(roomId, headers);
-        if (room == null) return;
-        room.setAsync(msg.enabled());
-        broadcast(room);
-    }
-
-    /** Голос участника по конкретной задаче в async-режиме. */
-    @MessageMapping("/room/{roomId}/backlog/vote")
-    public void asyncVote(@DestinationVariable String roomId, @Payload Messages.AsyncVoteMessage msg,
-                          SimpMessageHeaderAccessor headers) {
-        Room room = resolve(roomId, headers);
-        if (room == null || !room.isAsync()) return;
-        Participant p = actor(room, headers);
-        if (p == null || p.getRole() == Participant.Role.OBSERVER) return;
-        if (!room.getEffectiveCards().contains(msg.value())) return;
-        room.getBacklog().stream()
-                .filter(i -> i.getId().equals(msg.itemId()) && !i.isRevealed())
-                .findFirst()
-                .ifPresent(i -> i.putLiveVote(p.getId(), msg.value()));
-        broadcast(room);
-    }
-
-    /** Ведущий вскрывает голоса по задаче (значения становятся видны всем). */
-    @MessageMapping("/room/{roomId}/backlog/reveal")
-    public void asyncReveal(@DestinationVariable String roomId, @Payload Messages.ActivateBacklogItemMessage msg,
-                            SimpMessageHeaderAccessor headers) {
-        Room room = requireModerator(roomId, headers);
-        if (room == null) return;
-        room.getBacklog().stream()
-                .filter(i -> i.getId().equals(msg.itemId()))
-                .findFirst()
-                .ifPresent(i -> i.setRevealed(true));
-        broadcast(room);
-    }
-
-    /** Ведущий фиксирует итоговую оценку задачи (с привязкой снимка голосов). */
-    @MessageMapping("/room/{roomId}/backlog/estimate")
-    public void asyncEstimate(@DestinationVariable String roomId, @Payload Messages.ItemEstimateMessage msg,
-                              SimpMessageHeaderAccessor headers) {
-        Room room = requireModerator(roomId, headers);
-        if (room == null || msg.value() == null) return;
-        room.getBacklog().stream()
-                .filter(i -> i.getId().equals(msg.itemId()))
-                .findFirst()
-                .ifPresent(i -> {
-                    i.setEstimate(msg.value());
-                    i.setRevealed(true);
-                    i.setVotes(liveVotesSnapshot(room, i));
-                });
-        broadcast(room);
-    }
-
-    /** Снимок живых голосов задачи (id→значение) в список (имя, значение). */
-    private java.util.List<BacklogItem.RoundVote> liveVotesSnapshot(Room room, BacklogItem item) {
-        return item.getLiveVotes().entrySet().stream()
-                .map(e -> {
-                    Participant p = room.getParticipant(e.getKey());
-                    return new BacklogItem.RoundVote(p != null ? p.getName() : "?", e.getValue());
-                })
-                .sorted(java.util.Comparator.comparing(BacklogItem.RoundVote::name, String.CASE_INSENSITIVE_ORDER))
-                .toList();
-    }
-
     @MessageMapping("/room/{roomId}/reset")
     public void reset(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
                       SimpMessageHeaderAccessor headers) {
         Room room = requireModerator(roomId, headers);
         if (room == null) return;
-        // Если переоткрываем уже вскрытый раунд по ещё не оценённой задаче —
-        // это переголосование: фиксируем его в истории задачи (#6).
-        if (room.isRevealed() && room.getActiveItemId() != null) {
-            room.getBacklog().stream()
-                    .filter(i -> i.getId().equals(room.getActiveItemId()) && i.getEstimate() == null)
-                    .findFirst()
-                    .ifPresent(BacklogItem::incrementRevotes);
-        }
-        room.resetRound();
-        broadcast(room);
-    }
-
-    /**
-     * Новый раунд по бэклогу: переходит к следующей незаоценённой задаче.
-     * Если незаоценённых задач не осталось (или бэклог пуст) — просто
-     * сбрасывает раунд для текущей задачи (поведение как у reset).
-     */
-    @MessageMapping("/room/{roomId}/next")
-    public void nextItem(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
-                         SimpMessageHeaderAccessor headers) {
-        Room room = requireModerator(roomId, headers);
-        if (room == null) return;
-        BacklogItem next = room.getBacklog().stream()
-                .filter(i -> i.getEstimate() == null)
-                .findFirst()
-                .orElse(null);
-        if (next != null) {
-            room.setActiveItemId(next.getId());
-            room.setCurrentStory(next.getTitle());
-        }
         room.resetRound();
         broadcast(room);
     }
@@ -254,19 +161,6 @@ public class PokerController {
         room.setCurrentStory(title);
         room.resetRound();
         broadcast(room);
-    }
-
-    /** Ведущий переименовывает сессию прямо во время её проведения. */
-    @MessageMapping("/room/{roomId}/rename")
-    public void renameRoom(@DestinationVariable String roomId, @Payload Messages.RenameRoomMessage msg,
-                           SimpMessageHeaderAccessor headers) {
-        Room room = requireModerator(roomId, headers);
-        if (room == null || msg.name() == null) return;
-        String name = msg.name().strip();
-        if (name.isEmpty()) return;
-        if (name.length() > 80) name = name.substring(0, 80);
-        room.setName(name);
-        broadcast(room); // persistRoom внутри синхронизирует имя в истории сессий
     }
 
     @MessageMapping("/room/{roomId}/deck")
@@ -314,16 +208,10 @@ public class PokerController {
         final String est = (rawEst != null && rawEst.length() > 16) ? rawEst.substring(0, 16) : rawEst;
         room.setFinalEstimate(est);
         if (est != null && room.getActiveItemId() != null) {
-            // Снимок голосов на момент фиксации — для истории раунда (#6).
-            java.util.List<BacklogItem.RoundVote> snapshot = room.getParticipants().stream()
-                    .filter(p -> p.getRole() != Participant.Role.OBSERVER && p.getVote() != null)
-                    .map(p -> new BacklogItem.RoundVote(p.getName(), p.getVote()))
-                    .sorted(java.util.Comparator.comparing(BacklogItem.RoundVote::name, String.CASE_INSENSITIVE_ORDER))
-                    .toList();
             room.getBacklog().stream()
                     .filter(i -> i.getId().equals(room.getActiveItemId()))
                     .findFirst()
-                    .ifPresent(i -> { i.setEstimate(est); i.setVotes(snapshot); });
+                    .ifPresent(i -> i.setEstimate(est));
         }
         broadcast(room);
     }
@@ -365,22 +253,6 @@ public class PokerController {
         broadcast(room);
     }
 
-    @MessageMapping("/room/{roomId}/backlog/import")
-    public void importBacklog(@DestinationVariable String roomId, @Payload Messages.ImportBacklogMessage msg,
-                              SimpMessageHeaderAccessor headers) {
-        Room room = requireModerator(roomId, headers);
-        if (room == null || msg.titles() == null) return;
-        for (String raw : msg.titles()) {
-            if (room.getBacklog().size() >= 200) break;
-            if (raw == null) continue;
-            String title = raw.strip();
-            if (title.isEmpty()) continue;
-            if (title.length() > 120) title = title.substring(0, 120);
-            room.getBacklog().add(new BacklogItem(title));
-        }
-        broadcast(room);
-    }
-
     @MessageMapping("/room/{roomId}/backlog/remove")
     public void removeBacklogItem(@DestinationVariable String roomId, @Payload Messages.RemoveBacklogItemMessage msg,
                                   SimpMessageHeaderAccessor headers) {
@@ -406,14 +278,17 @@ public class PokerController {
         broadcast(room);
     }
 
-    /** Ведущий вручную передаёт/выдаёт права ведущего другому участнику. */
-    @MessageMapping("/room/{roomId}/promote")
-    public void promote(@DestinationVariable String roomId, @Payload Messages.PromoteMessage msg,
-                        SimpMessageHeaderAccessor headers) {
+    @MessageMapping("/room/{roomId}/transfer")
+    public void transferModerator(@DestinationVariable String roomId, @Payload Messages.TransferMessage msg,
+                                  SimpMessageHeaderAccessor headers) {
         Room room = requireModerator(roomId, headers);
         if (room == null || msg.targetId() == null) return;
         Participant target = room.getParticipant(msg.targetId());
-        if (target == null || target.getRole() == Participant.Role.OBSERVER) return;
+        if (target == null || target.getRole() == Participant.Role.MODERATOR) return;
+        Participant current = actor(room, headers);
+        if (current == null) return;
+        // Текущий модератор → PLAYER, целевой участник → MODERATOR
+        current.setRole(Participant.Role.PLAYER);
         target.setRole(Participant.Role.MODERATOR);
         broadcast(room);
     }
@@ -425,9 +300,18 @@ public class PokerController {
         if (room == null || msg.targetId() == null) return;
         Participant target = room.getParticipant(msg.targetId());
         room.removeParticipant(msg.targetId());
-        // Снимаем привязку сессии исключённого, чтобы он не управлял дальше.
+        // Снимаем привязку сессии и уведомляем выгнанного через его личную очередь.
         if (target != null && target.getSessionId() != null) {
-            sessions.remove(target.getSessionId());
+            String kickedSession = target.getSessionId();
+            sessions.remove(kickedSession);
+            // Отправляем error-сообщение в /user/queue/me выгнанного участника.
+            // Клиент обработает его в onMe() и вернётся в лобби.
+            SimpMessageHeaderAccessor ha = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+            ha.setSessionId(kickedSession);
+            ha.setLeaveMutable(true);
+            messaging.convertAndSendToUser(kickedSession, "/queue/me",
+                    Map.of("error", "Вы были удалены из комнаты модератором"),
+                    ha.getMessageHeaders());
         }
         broadcast(room);
     }

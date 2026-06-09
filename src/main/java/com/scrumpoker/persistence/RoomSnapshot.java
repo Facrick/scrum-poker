@@ -26,15 +26,11 @@ public record RoomSnapshot(
         List<ParticipantSnap> participants,
         List<BacklogSnap> backlog,
         String activeItemId,
-        String ownerUserId,           // null для анонимных комнат
-        boolean async                 // режим async-оценки (#3)
+        String ownerUserId            // null для анонимных комнат
 ) {
 
     public record ParticipantSnap(String id, String name, String role, String vote) {}
-    public record BacklogSnap(String id, String title, String estimate,
-                              int revotes, List<VoteSnap> votes,
-                              java.util.Map<String, String> liveVotes, boolean itemRevealed) {}
-    public record VoteSnap(String name, String value) {}
+    public record BacklogSnap(String id, String title, String estimate) {}
 
     /** Создать снимок из доменного объекта Room. */
     public static RoomSnapshot from(Room room) {
@@ -43,13 +39,7 @@ public record RoomSnapshot(
                 .collect(Collectors.toList());
 
         List<BacklogSnap> bl = room.getBacklog().stream()
-                .map(i -> new BacklogSnap(i.getId(), i.getTitle(), i.getEstimate(),
-                        i.getRevotes(),
-                        i.getVotes().stream()
-                                .map(v -> new VoteSnap(v.name(), v.value()))
-                                .collect(Collectors.toList()),
-                        new java.util.HashMap<>(i.getLiveVotes()),
-                        i.isRevealed()))
+                .map(i -> new BacklogSnap(i.getId(), i.getTitle(), i.getEstimate()))
                 .collect(Collectors.toList());
 
         return new RoomSnapshot(
@@ -65,8 +55,7 @@ public record RoomSnapshot(
                 parts,
                 bl,
                 room.getActiveItemId(),
-                room.getOwnerUserId(),
-                room.isAsync()
+                room.getOwnerUserId()
         );
     }
 
@@ -84,7 +73,6 @@ public record RoomSnapshot(
         room.setTimerSeconds(timerSeconds);
         room.setActiveItemId(activeItemId);
         room.setOwnerUserId(ownerUserId);  // null для старых снимков без ownerUserId
-        room.setAsync(async);
 
         if (participants != null) {
             for (ParticipantSnap ps : participants) {
@@ -101,16 +89,6 @@ public record RoomSnapshot(
             for (BacklogSnap bs : backlog) {
                 BacklogItem item = new BacklogItem(bs.id(), bs.title());
                 item.setEstimate(bs.estimate());
-                item.setRevotes(bs.revotes()); // 0 для старых снимков
-                if (bs.votes() != null) {
-                    item.setVotes(bs.votes().stream()
-                            .map(v -> new BacklogItem.RoundVote(v.name(), v.value()))
-                            .collect(Collectors.toList()));
-                }
-                if (bs.liveVotes() != null) {
-                    bs.liveVotes().forEach(item::putLiveVote);
-                }
-                item.setRevealed(bs.itemRevealed());
                 room.getBacklog().add(item);
             }
         }

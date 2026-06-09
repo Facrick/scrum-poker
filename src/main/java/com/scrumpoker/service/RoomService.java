@@ -80,32 +80,6 @@ public class RoomService {
         return room;
     }
 
-    /**
-     * Создать комнату с заранее подготовленным бэклогом (из ЛК).
-     * Первая задача становится активной. Пустые/слишком длинные строки чистятся,
-     * лимит — 200 задач.
-     */
-    public Room createRoom(String name, Deck deck, String ownerUserId, java.util.List<String> tasks) {
-        Room room = createRoom(name, deck, ownerUserId);
-        if (tasks != null) {
-            for (String raw : tasks) {
-                if (room.getBacklog().size() >= 200) break;
-                if (raw == null) continue;
-                String t = raw.strip();
-                if (t.isEmpty()) continue;
-                if (t.length() > 120) t = t.substring(0, 120);
-                room.getBacklog().add(new com.scrumpoker.model.BacklogItem(t));
-            }
-            if (!room.getBacklog().isEmpty()) {
-                com.scrumpoker.model.BacklogItem first = room.getBacklog().get(0);
-                room.setActiveItemId(first.getId());
-                room.setCurrentStory(first.getTitle());
-            }
-            persistRoom(room);
-        }
-        return room;
-    }
-
     public Optional<Room> getRoom(String id) {
         return Optional.ofNullable(rooms.get(id));
     }
@@ -116,11 +90,11 @@ public class RoomService {
             throw new IllegalStateException("Комната заполнена (максимум " + MAX_PARTICIPANTS + ")");
         }
         String id = generateId();
-        // Ведущим автоматически становится только САМЫЙ первый участник (создатель
-        // комнаты). Остальные входят в запрошенной роли — даже если ведущего нет
-        // онлайн. Права ведущего передаются дальше только вручную.
-        boolean firstEver = room.getParticipants().isEmpty();
-        Participant.Role effectiveRole = firstEver ? Participant.Role.MODERATOR : role;
+        // Модератор — только если в комнате ещё нет ни одного модератора (онлайн или офлайн).
+        // Это предотвращает появление двух модераторов при реконнекте старого и новом входе.
+        boolean hasModerator = room.getParticipants().stream()
+                .anyMatch(p -> p.getRole() == Participant.Role.MODERATOR);
+        Participant.Role effectiveRole = !hasModerator ? Participant.Role.MODERATOR : role;
         Participant p = new Participant(id, name, effectiveRole);
         room.addParticipant(p);
         return p;
@@ -152,21 +126,11 @@ public class RoomService {
         }
     }
 
-    // Подпись значимых для ЛК полей последней записи истории по комнате.
-    // Снимок комнаты пишем всегда (для надёжности итогов), а метаданные истории —
-    // только когда что-то реально поменялось, экономя запись в БД при «шторме» голосов.
-    private final Map<String, String> lastHistorySig = new ConcurrentHashMap<>();
-
     private void persistSessionHistory(Room room) {
         int taskCount = room.getBacklog().size();
         int estimatedCount = (int) room.getBacklog().stream()
                 .filter(i -> i.getEstimate() != null)
                 .count();
-        String sig = room.getName() + "|" + room.getParticipants().size()
-                + "|" + taskCount + "|" + estimatedCount;
-        // Голоса/таймер/вскрытие не меняют эти поля — пропускаем лишнюю запись.
-        if (sig.equals(lastHistorySig.get(room.getId()))) return;
-
         sessionHistoryRepository.upsert(new SessionHistory(
                 room.getId(),
                 room.getOwnerUserId(),
@@ -177,7 +141,6 @@ public class RoomService {
                 room.getCreatedAt(),
                 room.getLastActivityAt()
         ));
-        lastHistorySig.put(room.getId(), sig);
     }
 
     /** Число подряд идущих сбоев записи в БД (0 — последняя запись успешна). */
@@ -185,65 +148,9 @@ public class RoomService {
         return persistFailures.get();
     }
 
-    /**
-     * Переименовать сессию, принадлежащую пользователю. Обновляет историю и,
-     * если комната ещё жива в памяти, её имя + снимок. Возвращает false, если
-     * сессия не найдена или не принадлежит пользователю.
-     */
-    public boolean renameOwnedSession(String roomId, String userId, String name) {
-        Room room = rooms.get(roomId);
-        boolean ownsLiveRoom = room != null && userId.equals(room.getOwnerUserId());
-        int updated = sessionHistoryRepository.updateName(roomId, userId, name);
-        if (ownsLiveRoom) {
-            room.setName(name);
-            persistRoom(room); // заодно синхронизирует room_name в истории
-        }
-        return updated > 0 || ownsLiveRoom;
-    }
-
-    /**
-     * Удалить сессию пользователя: убрать из истории и, если комната жива,
-     * завершить её (память + снимок в БД). Возвращает false, если удалять нечего.
-     */
-    public boolean deleteOwnedSession(String roomId, String userId) {
-        Room room = rooms.get(roomId);
-        boolean ownsLiveRoom = room != null && userId.equals(room.getOwnerUserId());
-        int deleted = sessionHistoryRepository.delete(roomId, userId);
-        if (ownsLiveRoom) {
-            removeEmptyRoom(room); // удаляет из памяти и БД; больше не будет broadcast'ов
-        }
-        return deleted > 0 || ownsLiveRoom;
-    }
-
-    /**
-     * Загрузить комнату из памяти или (если уже не активна) из снимка БД.
-     * Используется публичной страницей итогов — без проверки владельца.
-     */
-    public Optional<Room> loadAnyRoom(String roomId) {
-        Room live = rooms.get(roomId);
-        if (live != null) return Optional.of(live);
-        return roomRepository.findById(roomId).flatMap(json -> {
-            try {
-                return Optional.of(objectMapper.readValue(json, RoomSnapshot.class).toRoom());
-            } catch (Exception e) {
-                return Optional.empty();
-            }
-        });
-    }
-
-    /**
-     * Комната, принадлежащая пользователю (из памяти или снимка БД), для отчётов из ЛК.
-     * Optional.empty(), если не найдена или не его.
-     */
-    public Optional<Room> loadOwnedRoom(String roomId, String userId) {
-        return loadAnyRoom(roomId)
-                .filter(room -> userId != null && userId.equals(room.getOwnerUserId()));
-    }
-
     public void removeEmptyRoom(Room room) {
         rooms.remove(room.getId());
         roomRepository.delete(room.getId());
-        lastHistorySig.remove(room.getId());
     }
 
     /**
@@ -253,26 +160,17 @@ public class RoomService {
     @Scheduled(fixedDelay = 30 * 60 * 1000)
     public void evictStaleRooms() {
         Instant cutoff = Instant.now().minus(roomTtlHours, ChronoUnit.HOURS);
-        // Снимки удаляем ТОЛЬКО для анонимных комнат. Сессии модераторов (с
-        // ownerUserId) сохраняют снимок как постоянный архив итогов — чтобы
-        // отчёт XLS и публичную страницу итогов можно было открыть когда угодно.
-        List<String> snapshotsToDelete = new ArrayList<>();
-        int[] evicted = {0};
+        List<String> toRemove = new ArrayList<>();
         rooms.values().removeIf(room -> {
             if (room.getLastActivityAt().isBefore(cutoff)) {
-                if (room.getOwnerUserId() == null) snapshotsToDelete.add(room.getId());
-                lastHistorySig.remove(room.getId());
-                evicted[0]++;
-                return true; // из памяти убираем в любом случае
+                toRemove.add(room.getId());
+                return true;
             }
             return false;
         });
-        if (!snapshotsToDelete.isEmpty()) {
-            roomRepository.deleteAll(snapshotsToDelete);
-        }
-        if (evicted[0] > 0) {
-            log.info("Выгружено из памяти {} комнат (снимков удалено: {})",
-                    evicted[0], snapshotsToDelete.size());
+        if (!toRemove.isEmpty()) {
+            roomRepository.deleteAll(toRemove);
+            log.info("Удалено {} устаревших комнат", toRemove.size());
         }
         // Подчищаем устаревшие окна rate-limiter, чтобы карта не росла.
         rateLimiter.evictOlderThan(60 * 60 * 1000L);

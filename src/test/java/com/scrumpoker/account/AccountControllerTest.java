@@ -152,116 +152,6 @@ class AccountControllerTest {
         assertThat(res).isEmpty();
     }
 
-    // ─── PATCH /api/me/sessions/{id} ──────────────────────────────
-
-    @Test
-    @Severity(SeverityLevel.BLOCKER)
-    @DisplayName("PATCH /sessions → 401 без аутентификации")
-    void renameReturns401WhenNotAuthenticated() {
-        ResponseEntity<Void> res = controller.renameSession(null, "r1",
-                new AccountController.RenameSessionRequest("New"));
-        assertThat(res.getStatusCode().value()).isEqualTo(401);
-    }
-
-    @Test
-    @DisplayName("PATCH /sessions → 400 при пустом имени")
-    void renameReturns400OnEmptyName() {
-        ResponseEntity<Void> res = controller.renameSession(oauthUser("u"), "r1",
-                new AccountController.RenameSessionRequest("   "));
-        assertThat(res.getStatusCode().value()).isEqualTo(400);
-        verify(roomService, never()).renameOwnedSession(anyString(), anyString(), anyString());
-    }
-
-    @Test
-    @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("PATCH /sessions → 204 и делегирует переименование владельцу")
-    void renameDelegatesToServiceScopedByOwner() {
-        when(roomService.renameOwnedSession("r1", "u", "New name")).thenReturn(true);
-        ResponseEntity<Void> res = controller.renameSession(oauthUser("u"), "r1",
-                new AccountController.RenameSessionRequest("  New name  "));
-        assertThat(res.getStatusCode().value()).isEqualTo(204);
-        verify(roomService).renameOwnedSession("r1", "u", "New name");
-    }
-
-    @Test
-    @DisplayName("PATCH /sessions → 404, если сессия не принадлежит пользователю")
-    void renameReturns404WhenNotOwned() {
-        when(roomService.renameOwnedSession("r1", "u", "X")).thenReturn(false);
-        ResponseEntity<Void> res = controller.renameSession(oauthUser("u"), "r1",
-                new AccountController.RenameSessionRequest("X"));
-        assertThat(res.getStatusCode().value()).isEqualTo(404);
-    }
-
-    // ─── DELETE /api/me/sessions/{id} ─────────────────────────────
-
-    @Test
-    @Severity(SeverityLevel.BLOCKER)
-    @DisplayName("DELETE /sessions → 401 без аутентификации")
-    void deleteReturns401WhenNotAuthenticated() {
-        ResponseEntity<Void> res = controller.deleteSession(null, "r1");
-        assertThat(res.getStatusCode().value()).isEqualTo(401);
-    }
-
-    @Test
-    @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("DELETE /sessions → 204 и делегирует удаление владельцу")
-    void deleteDelegatesToServiceScopedByOwner() {
-        when(roomService.deleteOwnedSession("r1", "u")).thenReturn(true);
-        ResponseEntity<Void> res = controller.deleteSession(oauthUser("u"), "r1");
-        assertThat(res.getStatusCode().value()).isEqualTo(204);
-        verify(roomService).deleteOwnedSession("r1", "u");
-    }
-
-    @Test
-    @DisplayName("DELETE /sessions → 404, если удалять нечего/не его")
-    void deleteReturns404WhenNothingDeleted() {
-        when(roomService.deleteOwnedSession("r1", "u")).thenReturn(false);
-        ResponseEntity<Void> res = controller.deleteSession(oauthUser("u"), "r1");
-        assertThat(res.getStatusCode().value()).isEqualTo(404);
-    }
-
-    // ─── GET /api/me/sessions/{id}/report ─────────────────────────
-
-    @Test
-    @Severity(SeverityLevel.BLOCKER)
-    @DisplayName("GET /report → 401 без аутентификации")
-    void reportReturns401WhenNotAuthenticated() {
-        ResponseEntity<AccountController.SessionReport> res = controller.report(null, "r1");
-        assertThat(res.getStatusCode().value()).isEqualTo(401);
-    }
-
-    @Test
-    @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("GET /report → детальный отчёт владельца (задачи, оценки, голоса)")
-    void reportReturnsDetailForOwner() {
-        Room room = new Room("r1", "Спринт 7", Deck.FIBONACCI);
-        com.scrumpoker.model.BacklogItem item = new com.scrumpoker.model.BacklogItem("Логин");
-        item.setEstimate("5");
-        item.setRevotes(1);
-        item.setVotes(List.of(new com.scrumpoker.model.BacklogItem.RoundVote("Alice", "5")));
-        room.getBacklog().add(item);
-        when(roomService.loadOwnedRoom("r1", "u")).thenReturn(Optional.of(room));
-
-        ResponseEntity<AccountController.SessionReport> res = controller.report(oauthUser("u"), "r1");
-
-        assertThat(res.getStatusCode().value()).isEqualTo(200);
-        AccountController.SessionReport body = res.getBody();
-        assertThat(body).isNotNull();
-        assertThat(body.roomName()).isEqualTo("Спринт 7");
-        assertThat(body.items()).hasSize(1);
-        assertThat(body.items().get(0).estimate()).isEqualTo("5");
-        assertThat(body.items().get(0).revotes()).isEqualTo(1);
-        assertThat(body.items().get(0).votes()).extracting("name").containsExactly("Alice");
-    }
-
-    @Test
-    @DisplayName("GET /report → 404, если сессия не найдена/не его")
-    void reportReturns404WhenNotOwned() {
-        when(roomService.loadOwnedRoom("r1", "u")).thenReturn(Optional.empty());
-        ResponseEntity<AccountController.SessionReport> res = controller.report(oauthUser("u"), "r1");
-        assertThat(res.getStatusCode().value()).isEqualTo(404);
-    }
-
     // ─── POST /api/me/rooms ───────────────────────────────────────
 
     @Test
@@ -278,14 +168,14 @@ class AccountControllerTest {
     void createRoomLinksToAccount() {
         String userId = "user-5";
         Room room = new Room("abc12345", "Спринт 1", Deck.FIBONACCI);
-        when(roomService.createRoom("Спринт 1", Deck.FIBONACCI, userId, null)).thenReturn(room);
+        when(roomService.createRoom("Спринт 1", Deck.FIBONACCI, userId)).thenReturn(room);
 
         ResponseEntity<Map<String, String>> res = controller.createRoom(
                 oauthUser(userId),
-                new AccountController.CreateRoomRequest("Спринт 1", "FIBONACCI", null));
+                new AccountController.CreateRoomRequest("Спринт 1", "FIBONACCI"));
 
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         assertThat(res.getBody()).containsEntry("roomId", "abc12345");
-        verify(roomService).createRoom("Спринт 1", Deck.FIBONACCI, userId, null);
+        verify(roomService).createRoom("Спринт 1", Deck.FIBONACCI, userId);
     }
 }

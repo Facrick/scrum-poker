@@ -2,30 +2,26 @@ package com.scrumpoker.config;
 
 import com.scrumpoker.account.OAuthUserService;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final OAuthUserService oauthUserService;
-    private final JwtService jwtService;
-    private final JwtAuthFilter jwtAuthFilter;
 
-    public SecurityConfig(OAuthUserService oauthUserService,
-                          JwtService jwtService,
-                          JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(OAuthUserService oauthUserService) {
         this.oauthUserService = oauthUserService;
-        this.jwtService = jwtService;
-        this.jwtAuthFilter = jwtAuthFilter;
     }
 
     @Bean
@@ -33,48 +29,93 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
 
-            // Аутентификация stateless — её держит ТОЛЬКО JWT в заголовке.
-            // SecurityContext храним в атрибуте запроса, а НЕ в сессии: иначе
-            // oauth2Login по умолчанию сохранял бы контекст в HttpSession, и вход
-            // держался бы на JSESSIONID — тогда очистка токена при выходе не
-            // разлогинивала бы пользователя (баг: бадж висел после "Выйти").
-            // Сессия (IF_REQUIRED) нужна лишь OAuth2 для хранения authorization_request
-            // на время редиректа на провайдера; держать вход она больше не будет.
+            // Явно требуем сессию и фиксируем стратегию — changeSessionId() должен
+            // генерировать Set-Cookie ДО того, как successHandler пишет тело ответа.
             .sessionManagement(sm -> sm
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-            )
-            .securityContext(sc -> sc
-                .securityContextRepository(new RequestAttributeSecurityContextRepository())
+                .sessionFixation().changeSessionId()
             )
 
             .authorizeHttpRequests(auth -> auth
-                // ЛК модератора требует авторизации (JWT)
-                .requestMatchers("/api/me", "/api/me/**").authenticated()
-                // /account — статическая страница SPA, она сама проверит токен и
-                // редиректнёт на /login, если его нет; поэтому оставляем публичной.
+                // ЛК модератора требует авторизации
+                .requestMatchers("/account", "/account/**", "/api/me", "/api/me/**").authenticated()
                 // Всё остальное публично — анонимные участники не трогаются
                 .anyRequest().permitAll()
             )
 
-            // JWT-фильтр до стандартного логина: восстанавливает аутентификацию из Bearer-токена.
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
                 .userInfoEndpoint(ui -> ui.userService(oauthUserService))
-                // После успешной авторизации выпускаем JWT и передаём его SPA через
-                // фрагмент URL (#token=...). Фрагмент не уходит на сервер и не попадает
-                // в логи/Referer; статическая страница перекладывает его в localStorage.
+                // Отдаём 200 + JS-редирект вместо 302.
+                // Railway (и другие reverse-proxy) иногда обрезают Set-Cookie в 302-ответах,
+                // из-за чего JSESSIONID не сохраняется в браузере и сессия теряется.
+                // 200-ответ с <meta refresh> гарантирует, что cookie установлен до перехода.
                 .successHandler((req, res, auth) -> {
-                    OAuth2User principal = (OAuth2User) auth.getPrincipal();
-                    String userId = principal.getAttribute("_userId");
-                    String token = jwtService.issue(userId);
-                    res.sendRedirect("/auth-callback.html#token=" + token);
+                    // Сохраняем SecurityContext в сессию явно.
+                    HttpSession session = req.getSession(true);
+                    SecurityContext ctx = SecurityContextHolder.getContext();
+                    ctx.setAuthentication(auth);
+                    session.setAttribute(
+                        HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, ctx);
+
+                    // Railway обрезает Set-Cookie заголовки из ЛЮБЫХ ответов (подтверждено).
+                    // Обходное решение: кладём sessionId прямо в тело HTML,
+                    // JS устанавливает JSESSIONID через document.cookie — тело Railway не трогает.
+                    String sid = session.getId();
+                    res.setContentType("text/html;charset=UTF-8");
+                    res.setHeader("Cache-Control", "no-store");
+                    res.getWriter().write("""
+                        <!doctype html><html><head><title>Входим...</title>
+                        <style>
+                          body{background:#0d1117;color:#e6edf3;font-family:sans-serif;
+                               display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+                          .box{text-align:center;padding:2rem}
+                          #status{font-size:1.1rem;margin-bottom:1.5rem}
+                          button{background:#2f81f7;color:#fff;border:none;border-radius:8px;
+                                 padding:.7rem 1.6rem;font-size:1rem;cursor:pointer}
+                          button:disabled{opacity:.4;cursor:not-allowed}
+                          .err{color:#f85149}
+                        </style>
+                        </head><body><div class="box">
+                        <p id="status">⏳ Устанавливаем сессию…</p>
+                        <button id="btn" disabled>Перейти в кабинет</button>
+                        <p id="debug" style="font-size:.75rem;color:#8b949e;margin-top:1rem"></p>
+                        </div><script>
+                        document.cookie = 'JSESSIONID=%s; path=/; SameSite=Lax';
+                        fetch('/api/me', {credentials:'include'}).then(async r => {
+                          const txt = await r.text();
+                          if (r.ok) {
+                            document.getElementById('status').textContent = '✓ Авторизован!';
+                            const btn = document.getElementById('btn');
+                            btn.disabled = false;
+                            btn.onclick = () => location.replace('/account');
+                            // Авто-переход через 2 сек
+                            setTimeout(() => location.replace('/account'), 2000);
+                          } else {
+                            document.getElementById('status').innerHTML =
+                              '<span class=\\"err\\">✗ Ошибка сессии (' + r.status + ')</span>';
+                            document.getElementById('debug').textContent =
+                              'sid=%s | resp=' + txt.substring(0, 80);
+                          }
+                        }).catch(e => {
+                          document.getElementById('status').innerHTML =
+                            '<span class=\\"err\\">Ошибка сети: ' + e + '</span>';
+                        });
+                        </script></body></html>
+                        """.formatted(sid, sid));
                 })
                 .failureUrl("/login?error=true")
             )
 
+            .logout(logout -> logout
+                .logoutRequestMatcher(new AntPathRequestMatcher("/api/me/logout", "POST"))
+                .logoutSuccessUrl("/")
+                .deleteCookies("JSESSIONID")
+                .invalidateHttpSession(true)
+            )
+
             // Единый entry point: API → 401 JSON, остальное → редирект на /login.
+            // Регистрируется последним, что гарантирует приоритет над oauth2Login.
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, authEx) -> {
                     if (req.getRequestURI().startsWith("/api/")) {

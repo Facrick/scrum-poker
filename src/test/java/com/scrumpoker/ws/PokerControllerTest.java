@@ -35,16 +35,13 @@ class PokerControllerTest {
 
     private RoomService roomService;
     private PokerController controller;
-    private com.scrumpoker.config.JwtService jwtService;
     private Room room;
 
     @BeforeEach
     void setUp() {
         roomService = new RoomService(new ObjectMapper(), mock(RoomRepository.class),
                 mock(SessionHistoryRepository.class), new RateLimiter());
-        jwtService = new com.scrumpoker.config.JwtService("test-secret-test-secret-test-secret-123", 24);
-        controller = new PokerController(roomService, mock(SimpMessagingTemplate.class),
-                new RateLimiter(), jwtService);
+        controller = new PokerController(roomService, mock(SimpMessagingTemplate.class), new RateLimiter());
         room = roomService.createRoom("Sprint", Deck.FIBONACCI);
     }
 
@@ -55,12 +52,8 @@ class PokerControllerTest {
     }
 
     private String join(String name, String role, String existingId, String sessionId) {
-        return join(name, role, existingId, sessionId, null);
-    }
-
-    private String join(String name, String role, String existingId, String sessionId, String token) {
         Map<String, String> reply = controller.join(
-                room.getId(), new Messages.JoinMessage(name, role, existingId, token), session(sessionId));
+                room.getId(), new Messages.JoinMessage(name, role, existingId), session(sessionId));
         return reply.get("participantId");
     }
 
@@ -163,167 +156,6 @@ class PokerControllerTest {
         assertThat(room.size()).isEqualTo(n);
         List<String> ids = room.getParticipants().stream().map(Participant::getId).toList();
         assertThat(ids).doesNotHaveDuplicates();
-    }
-
-    // ---- Owner-promote (JWT владельца) ----
-
-    @Test
-    @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("Владелец комнаты с валидным JWT входит ведущим, даже зайдя не первым")
-    void ownerBecomesModeratorViaToken() {
-        Room owned = roomService.createRoom("Owned", Deck.FIBONACCI, "owner-1");
-        controller.join(owned.getId(), new Messages.JoinMessage("Bob", "PLAYER", null, null), session("s1"));
-        String token = jwtService.issue("owner-1");
-        Map<String, String> reply = controller.join(
-                owned.getId(), new Messages.JoinMessage("Alice", "PLAYER", null, token), session("s2"));
-        assertThat(reply.get("role")).isEqualTo("MODERATOR");
-    }
-
-    @Test
-    @Severity(SeverityLevel.BLOCKER)
-    @DisplayName("Токен НЕ владельца не даёт роль ведущего")
-    void nonOwnerTokenDoesNotPromote() {
-        Room owned = roomService.createRoom("Owned", Deck.FIBONACCI, "owner-1");
-        controller.join(owned.getId(), new Messages.JoinMessage("Bob", "PLAYER", null, null), session("s1"));
-        String foreign = jwtService.issue("someone-else");
-        Map<String, String> reply = controller.join(
-                owned.getId(), new Messages.JoinMessage("Eve", "PLAYER", null, foreign), session("s2"));
-        assertThat(reply.get("role")).isEqualTo("PLAYER");
-    }
-
-    // ---- История раунда (#6) ----
-
-    @Test
-    @Severity(SeverityLevel.NORMAL)
-    @DisplayName("Фиксация оценки сохраняет голоса, reset после вскрытия считает переголосование")
-    void roundHistoryCapturesVotesAndRevotes() {
-        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
-        String bob = join("Bob", "PLAYER", null, "s2");
-        controller.setStory(room.getId(), new Messages.SetStoryMessage(alice, "Логин"), session("s1"));
-
-        // Раунд 1: голоса расходятся → вскрыть → переголосовать (reset).
-        controller.vote(room.getId(), new Messages.VoteMessage(alice, "3"), session("s1"));
-        controller.vote(room.getId(), new Messages.VoteMessage(bob, "8"), session("s2"));
-        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-        controller.reset(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-
-        // Раунд 2: консенсус → вскрыть → зафиксировать.
-        controller.vote(room.getId(), new Messages.VoteMessage(alice, "5"), session("s1"));
-        controller.vote(room.getId(), new Messages.VoteMessage(bob, "5"), session("s2"));
-        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-        controller.setFinalEstimate(room.getId(),
-                new Messages.SetFinalEstimateMessage(alice, "5"), session("s1"));
-
-        var item = room.getBacklog().get(0);
-        assertThat(item.getRevotes()).isEqualTo(1);
-        assertThat(item.getVotes()).extracting("value").containsExactlyInAnyOrder("5", "5");
-        assertThat(item.getVotes()).extracting("name").contains("Alice", "Bob");
-    }
-
-    // ---- Async-оценка (#3) ----
-
-    @Test
-    @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("Async: голоса скрыты до вскрытия, фиксация сохраняет снимок и оценку")
-    void asyncVotingHidesUntilRevealAndFinalizes() {
-        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
-        String bob = join("Bob", "PLAYER", null, "s2");
-        controller.importBacklog(room.getId(),
-                new Messages.ImportBacklogMessage(alice, List.of("Логин", "Корзина")), session("s1"));
-        controller.setAsyncMode(room.getId(), new Messages.AsyncModeMessage(alice, true), session("s1"));
-        assertThat(room.isAsync()).isTrue();
-
-        var item = room.getBacklog().get(0);
-        controller.asyncVote(room.getId(), new Messages.AsyncVoteMessage(alice, item.getId(), "5"), session("s1"));
-        controller.asyncVote(room.getId(), new Messages.AsyncVoteMessage(bob, item.getId(), "8"), session("s2"));
-        assertThat(item.getLiveVotes()).hasSize(2);
-        assertThat(item.isRevealed()).isFalse();
-
-        // Наблюдатель не голосует
-        controller.asyncReveal(room.getId(), new Messages.ActivateBacklogItemMessage(alice, item.getId()), session("s1"));
-        assertThat(item.isRevealed()).isTrue();
-
-        controller.asyncEstimate(room.getId(),
-                new Messages.ItemEstimateMessage(alice, item.getId(), "8"), session("s1"));
-        assertThat(item.getEstimate()).isEqualTo("8");
-        assertThat(item.getVotes()).extracting("value").containsExactlyInAnyOrder("5", "8");
-    }
-
-    @Test
-    @DisplayName("Async: голос от не-модератора по чужой команде всё равно учитывается как голос участника")
-    void asyncVoteIgnoredWhenNotAsync() {
-        String alice = join("Alice", "PLAYER", null, "s1");
-        controller.importBacklog(room.getId(),
-                new Messages.ImportBacklogMessage(alice, List.of("X")), session("s1"));
-        var item = room.getBacklog().get(0);
-        // async выключен → голос по задаче не принимается
-        controller.asyncVote(room.getId(), new Messages.AsyncVoteMessage(alice, item.getId(), "5"), session("s1"));
-        assertThat(item.getLiveVotes()).isEmpty();
-    }
-
-    // ---- Импорт бэклога списком ----
-
-    @Test
-    @DisplayName("Импорт списком добавляет задачи, пропуская пустые строки")
-    void importBacklogAddsItemsSkippingBlanks() {
-        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
-        controller.importBacklog(room.getId(),
-                new Messages.ImportBacklogMessage(alice, List.of("Авторизация", "  ", "Корзина", "")),
-                session("s1"));
-        assertThat(room.getBacklog()).hasSize(2);
-        assertThat(room.getBacklog().get(0).getTitle()).isEqualTo("Авторизация");
-        assertThat(room.getBacklog().get(1).getTitle()).isEqualTo("Корзина");
-    }
-
-    @Test
-    @DisplayName("Импорт от игрока (не модератора) игнорируется")
-    void importBacklogRejectedForNonModerator() {
-        join("Alice", "PLAYER", null, "s1");                  // модератор
-        join("Bob", "PLAYER", null, "s2");                    // игрок
-        controller.importBacklog(room.getId(),
-                new Messages.ImportBacklogMessage("any", List.of("X")), session("s2"));
-        assertThat(room.getBacklog()).isEmpty();
-    }
-
-    // ---- Прогресс по бэклогу ----
-
-    @Test
-    @Severity(SeverityLevel.CRITICAL)
-    @DisplayName("Новый раунд по бэклогу переходит к следующей незаоценённой задаче")
-    void nextItemAdvancesToNextUnestimated() {
-        String alice = join("Alice", "PLAYER", null, "s1");   // модератор
-        controller.addBacklogItem(room.getId(), new Messages.AddBacklogItemMessage(alice, "T1"), session("s1"));
-        controller.addBacklogItem(room.getId(), new Messages.AddBacklogItemMessage(alice, "T2"), session("s1"));
-        String id1 = room.getBacklog().get(0).getId();
-        String id2 = room.getBacklog().get(1).getId();
-
-        // Активируем и оцениваем первую задачу.
-        controller.activateBacklogItem(room.getId(), new Messages.ActivateBacklogItemMessage(alice, id1), session("s1"));
-        controller.vote(room.getId(), new Messages.VoteMessage(alice, "5"), session("s1"));
-        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-        controller.setFinalEstimate(room.getId(), new Messages.SetFinalEstimateMessage(alice, "5"), session("s1"));
-        assertThat(room.getBacklog().get(0).getEstimate()).isEqualTo("5");
-
-        // «Новый раунд» → переход ко второй (незаоценённой) задаче, раунд сброшен.
-        controller.nextItem(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-        assertThat(room.getActiveItemId()).isEqualTo(id2);
-        assertThat(room.getCurrentStory()).isEqualTo("T2");
-        assertThat(room.isRevealed()).isFalse();
-    }
-
-    @Test
-    @DisplayName("Новый раунд без незаоценённых задач просто сбрасывает раунд")
-    void nextItemFallsBackToResetWhenAllEstimated() {
-        String alice = join("Alice", "PLAYER", null, "s1");
-        controller.addBacklogItem(room.getId(), new Messages.AddBacklogItemMessage(alice, "T1"), session("s1"));
-        String id1 = room.getBacklog().get(0).getId();
-        controller.activateBacklogItem(room.getId(), new Messages.ActivateBacklogItemMessage(alice, id1), session("s1"));
-        controller.reveal(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-        controller.setFinalEstimate(room.getId(), new Messages.SetFinalEstimateMessage(alice, "5"), session("s1"));
-
-        controller.nextItem(room.getId(), new Messages.ModeratorAction(alice), session("s1"));
-        assertThat(room.getActiveItemId()).as("активной остаётся текущая задача").isEqualTo(id1);
-        assertThat(room.isRevealed()).as("раунд сброшен").isFalse();
     }
 
     @Test

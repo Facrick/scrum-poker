@@ -6,8 +6,7 @@
     <title>Scrum Poker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>(function(){try{var t=localStorage.getItem('sp_theme');if(!t)t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-    <link rel="stylesheet" href="style.css?v=dev">
+    <link rel="stylesheet" href="style.css?v=21">
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
@@ -15,7 +14,6 @@
 
 <!-- ===== Лобби ===== -->
 <main id="lobby" class="lobby">
-    <button class="theme-toggle theme-toggle-fixed" type="button">☀️</button>
     <div class="lobby-card">
 
         <!-- Wordmark -->
@@ -27,16 +25,17 @@
         <!-- Бадж вошедшего модератора (скрыт по умолчанию, показывается JS) -->
         <div id="lobbyModBadge" class="lobby-mod-badge hidden"></div>
 
-        <p class="lobby-sub">Покер-планирование для agile-команд</p>
+        <p id="lobbyRoomHint" class="lobby-room-hint hidden"></p>
+        <p id="lobbySubtitle" class="lobby-sub">Покер-планирование для agile-команд</p>
 
         <!-- Mode tabs -->
         <div id="lobbyTabs" class="lobby-tabs">
-            <button id="tabCreate" class="lobby-tab active" type="button">Создать сессию</button>
-            <button id="tabJoin"   class="lobby-tab"        type="button">Войти в сессию</button>
+            <button id="tabCreate" class="lobby-tab active" type="button">Новая сессия</button>
+            <button id="tabJoin"   class="lobby-tab"        type="button">Войти</button>
         </div>
 
         <label class="field">
-            <span>Имя пользователя</span>
+            <span>Имя</span>
             <input id="nameInput" type="text" maxlength="40"
                    placeholder="Например, Алиса" autocomplete="new-password">
         </label>
@@ -63,20 +62,7 @@
         <button id="primaryBtn" class="btn btn-primary btn-block">Создать комнату</button>
         <p id="lobbyError" class="form-error"></p>
     </div>
-    <p class="lobby-foot">До 100 участников · без регистрации · <a href="/account" style="color:var(--accent);text-decoration:none">Кабинет модератора</a></p>
-</main>
-
-<!-- ===== Экран подключения ===== -->
-<main id="connecting" class="lobby hidden">
-    <div class="lobby-card" style="text-align:center">
-        <div class="lobby-wordmark">
-            <span class="lobby-suit">♠</span>
-            <span class="lobby-brand">Scrum Poker</span>
-        </div>
-        <p id="connectingText" class="lobby-sub">Подключаемся к комнате…</p>
-        <p id="connectingError" class="form-error"></p>
-        <a id="connectingBack" class="lobby-foot hidden" href="/" style="display:block;text-align:center">← На главную</a>
-    </div>
+    <p class="lobby-foot">До 100 участников · без регистрации · <a href="/login" style="color:var(--accent);text-decoration:none">Кабинет модератора</a></p>
 </main>
 
 <!-- ===== Комната ===== -->
@@ -85,7 +71,7 @@
     <header class="topbar">
         <div class="topbar-left">
             <span class="topbar-suit">♠</span>
-            <h1 id="roomName" class="room-title" title="Комната">Комната</h1>
+            <h1 id="roomName" class="room-title">Комната</h1>
         </div>
 
         <div class="topbar-center">
@@ -100,19 +86,17 @@
             </div>
             <span id="onlineCount" class="pill">0 онлайн</span>
             <span id="connDot" class="conn-dot" title="Соединение"></span>
-            <button id="modToggleBtn" class="btn btn-ghost btn-sm hidden" title="Панель управления">⚙</button>
             <button id="toggleBacklogBtn" class="btn btn-ghost btn-sm">Бэклог</button>
-            <button id="copyLinkBtn"      class="btn btn-ghost btn-sm"><span class="btn-ico">🔗</span><span class="link-text">Пригласить</span></button>
-            <button id="leaveRoomBtn"     class="btn btn-ghost btn-sm" title="Выйти из комнаты"><span class="btn-ico">🚪</span><span class="link-text">Выход</span></button>
-            <button class="theme-toggle" type="button">☀️</button>
+            <button id="copyLinkBtn"      class="btn btn-ghost btn-sm"><span class="link-text">Пригласить</span></button>
         </div>
     </header>
 
-    <!-- Текущая задача (видна на мобиле, где topbar-center скрыт) -->
-    <div id="storyBar" class="story-bar"></div>
-
     <section id="moderatorPanel" class="mod-panel hidden">
         <div class="mod-row">
+            <input id="storyInput" type="text" class="mod-input"
+                   placeholder="Название задачи" autocomplete="off">
+            <button id="setStoryBtn" class="btn btn-ghost btn-sm">Задать</button>
+            <span class="mod-sep"></span>
             <select id="deckChange" class="mod-select">
                 <option value="FIBONACCI">Фибоначчи</option>
                 <option value="POWERS_OF_TWO">Степени двойки</option>
@@ -137,51 +121,33 @@
             <span class="mod-spacer"></span>
             <button id="revealBtn" class="btn btn-primary btn-sm">Вскрыть карты</button>
             <button id="resetBtn"  class="btn btn-secondary btn-sm">Новый раунд</button>
-            <span class="mod-sep"></span>
-            <button id="asyncToggle" class="btn btn-ghost btn-sm" title="Асинхронная оценка всего бэклога">Async: выкл</button>
         </div>
     </section>
 
     <div class="room-body">
-        <section id="stage" class="stage">
+        <section class="stage">
             <div id="table" class="table"></div>
             <div id="results" class="results hidden"></div>
             <div id="waitHint" class="wait-hint"></div>
         </section>
 
-        <!-- Async-доска: голосование по всему бэклогу -->
-        <section id="asyncBoard" class="async-board hidden"></section>
-
         <aside id="backlogPanel" class="backlog-panel hidden">
             <div class="backlog-header">
                 <span>Бэклог</span>
-                <div class="backlog-header-actions">
-                    <button id="exportCsvBtn" class="btn btn-ghost btn-sm">Экспорт XLS</button>
-                    <button id="backlogCloseBtn" class="backlog-close" title="Закрыть">✕</button>
-                </div>
+                <button id="exportCsvBtn" class="btn btn-ghost btn-sm">Экспорт XLS</button>
             </div>
-            <div id="backlogStats" class="backlog-stats hidden"></div>
             <div id="backlogList" class="backlog-list"></div>
-            <div id="backlogImport" class="backlog-import hidden">
-                <textarea id="backlogImportInput" class="backlog-import-input"
-                          placeholder="Добавить списком — по одной задаче в строке&#10;Например:&#10;Авторизация&#10;Корзина&#10;Оплата"></textarea>
-                <button id="backlogImportBtn" class="btn btn-ghost btn-sm">+ Добавить списком</button>
-            </div>
         </aside>
     </div>
 
     <footer id="deckBar" class="deckbar">
-        <button id="deckCollapseBtn" class="deck-collapse" type="button" title="Свернуть карты">▾ Свернуть карты</button>
         <div id="deck" class="deck"></div>
         <p id="deckHint" class="deck-hint">Выберите карту</p>
-        <button id="deckActionBtn" class="btn btn-primary deck-action hidden" type="button">Вскрыть карты</button>
     </footer>
 </div>
 
 <div id="toast" class="toast"></div>
 
-<script src="theme.js?v=dev"></script>
-<script src="auth.js?v=dev"></script>
-<script src="app.js?v=dev"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>

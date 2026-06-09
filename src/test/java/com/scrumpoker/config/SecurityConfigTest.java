@@ -35,14 +35,11 @@ class SecurityConfigTest {
 
     @Test
     @Severity(SeverityLevel.BLOCKER)
-    @DisplayName("GET /account доступен как статика → 200 (защита через JWT на клиенте)")
-    void accountPageIsPublicSpaGuardedClientSide() throws Exception {
-        // Stateless-аутентификация: /account — это SPA-страница, которая сама
-        // проверяет JWT из localStorage и редиректит на /login при его отсутствии.
-        // Серверная защита тут невозможна — навигация браузера не несёт Bearer-заголовок.
-        // Реально защищены данные: /api/me и /api/me/** (см. тесты ниже).
+    @DisplayName("GET /account без входа → редирект на /login")
+    void accountRequiresAuthentication() throws Exception {
         mvc.perform(get("/account"))
-                .andExpect(status().isOk());
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
     }
 
     @Test
@@ -80,14 +77,6 @@ class SecurityConfigTest {
                         .content("{\"name\":\"Security Test\",\"deck\":\"FIBONACCI\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomId").exists());
-    }
-
-    @Test
-    @Severity(SeverityLevel.NORMAL)
-    @DisplayName("GET /api/public/sessions/{id} доступен без входа (404, а не 401)")
-    void publicSummaryIsAccessibleWithoutAuth() throws Exception {
-        mvc.perform(get("/api/public/sessions/nonexistent"))
-                .andExpect(status().isNotFound());
     }
 
     @Test

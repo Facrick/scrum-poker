@@ -22,13 +22,10 @@ public class UserRepository {
      */
     public User upsert(String provider, String providerId,
                        String email, String displayName, String avatarUrl) {
-        // ВАЖНО: display_name при повторных входах НЕ перезаписываем — иначе
-        // пользовательское имя, заданное в ЛК, сбрасывалось бы на имя из OAuth.
-        // Имя из провайдера используется только при первом INSERT.
         int updated = jdbc.update(
-                "UPDATE users SET email = ?, avatar_url = ? " +
+                "UPDATE users SET email = ?, display_name = ?, avatar_url = ? " +
                 "WHERE provider = ? AND provider_id = ?",
-                email, avatarUrl, provider, providerId);
+                email, displayName, avatarUrl, provider, providerId);
 
         if (updated > 0) {
             return findByProviderKey(provider, providerId).orElseThrow();
@@ -41,19 +38,14 @@ public class UserRepository {
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     id, provider, providerId, email, displayName, avatarUrl);
         } catch (DuplicateKeyException race) {
-            // Параллельный вход создал запись раньше — обновляем без display_name
+            // Параллельный вход создал запись раньше — просто обновляем
             jdbc.update(
-                    "UPDATE users SET email = ?, avatar_url = ? " +
+                    "UPDATE users SET email = ?, display_name = ?, avatar_url = ? " +
                     "WHERE provider = ? AND provider_id = ?",
-                    email, avatarUrl, provider, providerId);
+                    email, displayName, avatarUrl, provider, providerId);
             return findByProviderKey(provider, providerId).orElseThrow();
         }
         return new User(id, provider, providerId, email, displayName, avatarUrl);
-    }
-
-    /** Пользователь меняет отображаемое имя в ЛК. Возвращает число обновлённых строк. */
-    public int updateDisplayName(String id, String displayName) {
-        return jdbc.update("UPDATE users SET display_name = ? WHERE id = ?", displayName, id);
     }
 
     public Optional<User> findById(String id) {

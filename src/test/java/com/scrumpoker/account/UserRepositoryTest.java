@@ -58,31 +58,20 @@ class UserRepositoryTest {
     }
 
     @Test
-    @DisplayName("Повторный вход обновляет email/аватар, но сохраняет имя из ЛК")
+    @DisplayName("Повторный вход обновляет данные без дублирования записи")
     void upsertUpdatesExistingUserWithoutDuplicate() {
         User first = repository.upsert("github", "gh-42", "old@example.com", "Bob Old", null);
         User updated = repository.upsert("github", "gh-42", "new@example.com", "Bob New", "https://avatar/b");
 
-        // Тот же id, email/аватар обновлены…
+        // Тот же id, обновлённые поля
         assertThat(updated.id()).isEqualTo(first.id());
         assertThat(updated.email()).isEqualTo("new@example.com");
-        assertThat(updated.avatarUrl()).isEqualTo("https://avatar/b");
-        // …но display_name НЕ перезаписывается именем из OAuth (хранит имя из ЛК).
-        assertThat(updated.displayName()).isEqualTo("Bob Old");
+        assertThat(updated.displayName()).isEqualTo("Bob New");
 
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM users WHERE provider = ? AND provider_id = ?",
                 Integer.class, "github", "gh-42");
         assertThat(count).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("updateDisplayName меняет отображаемое имя")
-    void updateDisplayNameChangesName() {
-        User user = repository.upsert("google", "g-name-1", "x@y.z", "Имя1", null);
-        int rows = repository.updateDisplayName(user.id(), "Новое Имя");
-        assertThat(rows).isEqualTo(1);
-        assertThat(repository.findById(user.id()).orElseThrow().displayName()).isEqualTo("Новое Имя");
     }
 
     @Test
