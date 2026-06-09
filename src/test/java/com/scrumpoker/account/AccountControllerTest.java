@@ -1,7 +1,9 @@
 package com.scrumpoker.account;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scrumpoker.model.Room;
 import com.scrumpoker.model.Deck;
+import com.scrumpoker.persistence.RoomRepository;
 import com.scrumpoker.service.RoomService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -30,8 +32,10 @@ class AccountControllerTest {
     private final UserRepository           userRepo    = mock(UserRepository.class);
     private final SessionHistoryRepository historyRepo = mock(SessionHistoryRepository.class);
     private final RoomService              roomService = mock(RoomService.class);
+    private final RoomRepository           roomRepo    = mock(RoomRepository.class);
+    private final ObjectMapper             objectMapper = new ObjectMapper();
     private final AccountController        controller  =
-            new AccountController(userRepo, historyRepo, roomService);
+            new AccountController(userRepo, historyRepo, roomService, roomRepo, objectMapper);
 
     @BeforeEach
     void setUp() {
@@ -172,7 +176,7 @@ class AccountControllerTest {
 
         ResponseEntity<Map<String, String>> res = controller.createRoom(
                 oauthUser(userId),
-                new AccountController.CreateRoomRequest("Спринт 1", "FIBONACCI"));
+                new AccountController.CreateRoomRequest("Спринт 1", "FIBONACCI", null));
 
         assertThat(res.getStatusCode().value()).isEqualTo(200);
         assertThat(res.getBody()).containsEntry("roomId", "abc12345");
