@@ -92,7 +92,7 @@ function switchLobbyTab(mode) {
         $("roomCodeField").classList.add("hidden");
         $("roleField").classList.remove("hidden");
         $("primaryBtn").textContent = "Войти в комнату";
-        fetch("/api/rooms/" + encodeURIComponent(roomId))
+        fetch("/api/rooms/" + encodeURIComponent(roomId) + "?t=" + Date.now(), { cache: "no-store" })
             .then(async r => {
                 if (!r.ok) { switchToCreateMode("Комната не найдена. Проверьте ссылку или создайте новую:"); return; }
                 const info = await r.json();
@@ -134,7 +134,7 @@ async function onPrimary() {
             const code = $("roomCodeInput").value.trim() || roomId;
             if (!code) { lobbyError("Введите код комнаты"); $("primaryBtn").disabled = false; return; }
             roomId = code.toLowerCase();
-            const res = await fetch("/api/rooms/" + encodeURIComponent(roomId));
+            const res = await fetch("/api/rooms/" + encodeURIComponent(roomId) + "?t=" + Date.now(), { cache: "no-store" });
             if (!res.ok) {
                 switchToCreateMode("Комната не найдена. Проверьте код или создайте новую:");
                 $("primaryBtn").disabled = false;
@@ -312,9 +312,17 @@ function render(state) {
     }
 
     $("roomName").textContent = state.roomName;
-    // Подсказываем ведущему, что название кликабельно для переименования.
     $("roomName").classList.toggle("editable", myRole === "MODERATOR");
     $("roomName").title = myRole === "MODERATOR" ? "Нажмите, чтобы переименовать" : state.roomName;
+    const codeEl = $("roomCodeBadge");
+    if (codeEl) codeEl.textContent = "# " + state.roomId;
+
+    // Кнопка «Забрать роль» — видна владельцу комнаты, когда он не ведущий
+    const reclaimBtn = $("reclaimBtn");
+    if (reclaimBtn) {
+        const canReclaim = state.ownerParticipantId === myId && myRole !== "MODERATOR";
+        reclaimBtn.classList.toggle("hidden", !canReclaim);
+    }
 
     const storyText = state.currentStory || "Задача не задана";
     const storyLabel = $("storyLabel");
@@ -371,7 +379,7 @@ function updateDeckAction(state) {
         const anyVoted = state.participants.some(p => p.role !== "OBSERVER" && p.hasVoted);
         btn.textContent = "Вскрыть карты";
         btn.className = "btn btn-primary deck-action";
-        btn.disabled = !anyVoted;
+        btn.disabled = !anyVoted; // хотя бы один проголосовал
         btn.onclick = () => send("reveal", { participantId: myId });
     } else {
         btn.textContent = "Новый раунд";
@@ -475,10 +483,9 @@ function renderAsyncBoard(state) {
 // ---------- Кнопки модератора ----------
 function renderModButtons(state) {
     if (myRole !== "MODERATOR") return;
-    // Вскрыть — только когда ВСЕ онлайн-участники (не наблюдатели) проголосовали
-    const voters = state.participants.filter(p => p.online && p.role !== "OBSERVER");
-    const allVoted = voters.length > 0 && voters.every(p => p.hasVoted);
-    $("revealBtn").disabled = state.revealed || !allVoted;
+    // Вскрыть — модератор может в любой момент (хотя бы один проголосовал)
+    const anyVoted = state.participants.some(p => p.role !== "OBSERVER" && p.hasVoted);
+    $("revealBtn").disabled = state.revealed || !anyVoted;
     // Новый раунд — только если карты вскрыты
     $("resetBtn").disabled = !state.revealed;
 }
@@ -731,7 +738,7 @@ function renderResults(state) {
 
     } else {
         // ── Нет консенсуса ─────────────────────────────────────────
-        const suggested = s.average != null ? String(round(s.average)) : null;
+        const suggested = s.suggested || (s.average != null ? String(round(s.average)) : null);
 
         const chips = Object.entries(s.distribution)
             .sort((a, b) => b[1] - a[1])
@@ -925,7 +932,8 @@ $("roomName").addEventListener("click", () => {
 });
 
 $("revealBtn").addEventListener("click", () => send("reveal", { participantId: myId }));
-$("resetBtn").addEventListener("click", () => send("reset", { participantId: myId }));
+$("resetBtn").addEventListener("click",  () => send("reset",  { participantId: myId }));
+$("reclaimBtn").addEventListener("click", () => send("reclaim", { participantId: myId }));
 
 $("deckChange").addEventListener("change", (e) => {
     const val = e.target.value;

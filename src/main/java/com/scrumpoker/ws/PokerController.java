@@ -1,5 +1,6 @@
 package com.scrumpoker.ws;
 
+import com.scrumpoker.config.JwtService;
 import com.scrumpoker.dto.RoomStateDto;
 import com.scrumpoker.model.BacklogItem;
 import com.scrumpoker.model.Participant;
@@ -31,14 +32,17 @@ public class PokerController {
     private final RoomService roomService;
     private final SimpMessagingTemplate messaging;
     private final RateLimiter rateLimiter;
+    private final JwtService jwtService;
 
     // sessionId -> (roomId, participantId) для авторизации и обработки отключений.
     private final Map<String, String[]> sessions = new ConcurrentHashMap<>();
 
-    public PokerController(RoomService roomService, SimpMessagingTemplate messaging, RateLimiter rateLimiter) {
+    public PokerController(RoomService roomService, SimpMessagingTemplate messaging,
+                           RateLimiter rateLimiter, JwtService jwtService) {
         this.roomService = roomService;
         this.messaging = messaging;
         this.rateLimiter = rateLimiter;
+        this.jwtService = jwtService;
     }
 
     @MessageMapping("/room/{roomId}/join")
@@ -57,6 +61,9 @@ public class PokerController {
 
         String cleanName = sanitizeName(msg.name());
 
+        // Проверяем JWT: если участник является владельцем комнаты — даём ему MODERATOR.
+        final boolean isOwner = isRoomOwner(room, msg.token());
+
         // Вся логика find-or-create синхронизирована по комнате, чтобы два
         // одновременных join'а не создали дубль и не получили один participantId.
         synchronized (room) {
@@ -64,9 +71,9 @@ public class PokerController {
             if (msg.existingId() != null && !msg.existingId().isBlank()) {
                 Participant existing = room.getParticipant(msg.existingId());
                 if (existing != null) {
-                    // Если в комнате уже есть онлайн-модератор (другой) — понижаем до PLAYER,
-                    // чтобы не создавать двух модераторов при реконнекте старого.
-                    if (existing.getRole() == Participant.Role.MODERATOR) {
+                    if (isOwner) {
+                        grantOwnerModerator(room, existing);
+                    } else if (existing.getRole() == Participant.Role.MODERATOR) {
                         boolean anotherModOnline = room.getParticipants().stream()
                                 .anyMatch(p -> p.isOnline()
                                         && p.getRole() == Participant.Role.MODERATOR
@@ -84,7 +91,9 @@ public class PokerController {
                     .filter(p -> !p.isOnline() && p.getName().equalsIgnoreCase(cleanName))
                     .findFirst().orElse(null);
             if (byName != null) {
-                if (byName.getRole() == Participant.Role.MODERATOR) {
+                if (isOwner) {
+                    grantOwnerModerator(room, byName);
+                } else if (byName.getRole() == Participant.Role.MODERATOR) {
                     boolean anotherModOnline = room.getParticipants().stream()
                             .anyMatch(p -> p.isOnline()
                                     && p.getRole() == Participant.Role.MODERATOR
@@ -103,13 +112,14 @@ public class PokerController {
                     .toList()
                     .forEach(room::removeParticipant);
 
-            Participant.Role role = parseRole(msg.role());
+            Participant.Role role = isOwner ? Participant.Role.MODERATOR : parseRole(msg.role());
             Participant p;
             try {
                 p = roomService.join(room, cleanName, role);
             } catch (IllegalStateException full) {
                 return Map.of("error", full.getMessage());
             }
+            if (isOwner) grantOwnerModerator(room, p);
             bindSession(sessionId, room, p);
             broadcast(room);
             return Map.of("participantId", p.getId(), "role", p.getRole().name());
@@ -121,11 +131,15 @@ public class PokerController {
                      SimpMessageHeaderAccessor headers) {
         Room room = resolve(roomId, headers);
         if (room == null) return;
-        // Голосует только тот, кто привязан к этой сессии — payload.participantId не доверяем.
         Participant p = actor(room, headers);
         if (p == null || p.getRole() == Participant.Role.OBSERVER || room.isRevealed()) return;
         if (!room.getEffectiveCards().contains(msg.value())) return;
         p.setVote(msg.value());
+        // Автовскрытие: если все онлайн-голосующие проголосовали — переворачиваем карты.
+        boolean allVoted = room.getParticipants().stream()
+                .filter(x -> x.isOnline() && x.getRole() != Participant.Role.OBSERVER)
+                .allMatch(x -> x.getVote() != null);
+        if (allVoted && !room.isRevealed()) room.setRevealed(true);
         broadcast(room);
     }
 
@@ -395,6 +409,22 @@ public class PokerController {
         broadcast(room);
     }
 
+    /** Владелец комнаты забирает роль ведущего обратно. */
+    @MessageMapping("/room/{roomId}/reclaim")
+    public void reclaim(@DestinationVariable String roomId, @Payload Messages.ModeratorAction msg,
+                        SimpMessageHeaderAccessor headers) {
+        Room room = resolve(roomId, headers);
+        if (room == null) return;
+        Participant p = actor(room, headers);
+        if (p == null) return;
+        // Только владелец может забрать роль
+        if (!p.getId().equals(room.getOwnerParticipantId())) return;
+        synchronized (room) {
+            grantOwnerModerator(room, p);
+        }
+        broadcast(room);
+    }
+
     /** Вызывается из DisconnectListener при разрыве WebSocket-сессии. */
     void handleDisconnect(String sessionId) {
         String[] info = sessions.remove(sessionId);
@@ -454,6 +484,25 @@ public class PokerController {
         } catch (IllegalArgumentException e) {
             return Participant.Role.PLAYER;
         }
+    }
+
+    /** Проверяет, является ли владелец этой комнаты носителем токена. */
+    private boolean isRoomOwner(Room room, String token) {
+        if (token == null || token.isBlank() || room.getOwnerUserId() == null) return false;
+        String userId = jwtService.parseUserId(token);
+        return room.getOwnerUserId().equals(userId);
+    }
+
+    /**
+     * Назначает участника ведущим, понижая всех остальных ведущих до PLAYER.
+     * Запоминает ownerParticipantId в комнате.
+     */
+    private void grantOwnerModerator(Room room, Participant owner) {
+        room.getParticipants().stream()
+                .filter(p -> p.getRole() == Participant.Role.MODERATOR && !p.getId().equals(owner.getId()))
+                .forEach(p -> p.setRole(Participant.Role.PLAYER));
+        owner.setRole(Participant.Role.MODERATOR);
+        room.setOwnerParticipantId(owner.getId());
     }
 
     /**
