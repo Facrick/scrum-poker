@@ -315,7 +315,21 @@ function render(state) {
     $("roomName").classList.toggle("editable", myRole === "MODERATOR");
     $("roomName").title = myRole === "MODERATOR" ? "Нажмите, чтобы переименовать" : state.roomName;
     const codeEl = $("roomCodeBadge");
-    if (codeEl) codeEl.textContent = "# " + state.roomId;
+    if (codeEl) {
+        codeEl.textContent = "# " + state.roomId;
+        codeEl.title = "Нажмите, чтобы скопировать код";
+        codeEl.style.cursor = "pointer";
+        if (!codeEl._copyBound) {
+            codeEl._copyBound = true;
+            codeEl.addEventListener("click", () => {
+                navigator.clipboard.writeText(state.roomId).then(() => {
+                    const prev = codeEl.textContent;
+                    codeEl.textContent = "✓ Скопировано";
+                    setTimeout(() => { codeEl.textContent = "# " + state.roomId; }, 1500);
+                });
+            });
+        }
+    }
 
     // Кнопка «Забрать роль» — видна владельцу комнаты, когда он не ведущий
     const reclaimBtn = $("reclaimBtn");

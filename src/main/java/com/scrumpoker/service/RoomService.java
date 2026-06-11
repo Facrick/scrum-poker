@@ -239,8 +239,8 @@ public class RoomService {
     }
 
     private String generateId() {
-        StringBuilder sb = new StringBuilder(8);
-        for (int i = 0; i < 8; i++) {
+        StringBuilder sb = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) {
             sb.append(ALPHABET.charAt(random.nextInt(ALPHABET.length())));
         }
         return sb.toString();
