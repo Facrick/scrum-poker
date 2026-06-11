@@ -41,7 +41,8 @@ class PokerControllerTest {
     void setUp() {
         roomService = new RoomService(new ObjectMapper(), mock(RoomRepository.class),
                 mock(SessionHistoryRepository.class), new RateLimiter());
-        controller = new PokerController(roomService, mock(SimpMessagingTemplate.class), new RateLimiter());
+        controller = new PokerController(roomService, mock(SimpMessagingTemplate.class), new RateLimiter(),
+                mock(com.scrumpoker.config.JwtService.class));
         room = roomService.createRoom("Sprint", Deck.FIBONACCI);
     }
 
@@ -53,7 +54,7 @@ class PokerControllerTest {
 
     private String join(String name, String role, String existingId, String sessionId) {
         Map<String, String> reply = controller.join(
-                room.getId(), new Messages.JoinMessage(name, role, existingId), session(sessionId));
+                room.getId(), new Messages.JoinMessage(name, role, existingId, null), session(sessionId));
         return reply.get("participantId");
     }
 

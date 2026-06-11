@@ -5,7 +5,7 @@ public final class Messages {
     private Messages() {}
 
     /** existingId — сохранённый participantId клиента, для восстановления сессии после реконнекта. */
-    public record JoinMessage(String name, String role, String existingId) {}
+    public record JoinMessage(String name, String role, String existingId, String token) {}
     public record VoteMessage(String participantId, String value) {}
     public record ModeratorAction(String participantId) {} // отправитель, для проверки прав
     public record SetStoryMessage(String participantId, String story) {}

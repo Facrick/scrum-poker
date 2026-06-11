@@ -21,7 +21,8 @@ public record RoomStateDto(
         Long timerStartedAt,   // epoch millis, null = таймер не запущен
         int timerSeconds,
         List<BacklogItemView> backlog,
-        String activeItemId
+        String activeItemId,
+        String ownerParticipantId  // participantId владельца комнаты (для кнопки «Забрать роль»)
 ) {
     public record ParticipantView(String id, String name, String role, boolean online,
                                    boolean hasVoted, String vote) {}
@@ -69,12 +70,13 @@ public record RoomStateDto(
                 timerStartedAt,
                 room.getTimerSeconds(),
                 backlog,
-                room.getActiveItemId());
+                room.getActiveItemId(),
+                room.getOwnerParticipantId());
     }
 
-    /** Статистика раунда: среднее, медиана, распределение, наличие консенсуса. */
+    /** Статистика раунда: среднее, медиана, распределение, консенсус, рекомендуемая карта. */
     public record StatsDto(Double average, Double median, boolean consensus,
-                           Map<String, Long> distribution) {
+                           Map<String, Long> distribution, String suggested) {
         static StatsDto compute(Room room) {
             // В статистику входят все голосующие (модератор и участники), кроме наблюдателей.
             List<Double> numeric = room.getParticipants().stream()
@@ -92,14 +94,22 @@ public record RoomStateDto(
 
             Double average = null;
             Double median = null;
+            String suggested = null;
             if (!numeric.isEmpty()) {
                 average = numeric.stream().mapToDouble(Double::doubleValue).average().orElse(0);
                 int n = numeric.size();
                 median = n % 2 == 1 ? numeric.get(n / 2)
                         : (numeric.get(n / 2 - 1) + numeric.get(n / 2)) / 2.0;
+                // Ближайшая числовая карта из колоды к среднему арифметическому
+                final double avg = average;
+                suggested = room.getEffectiveCards().stream()
+                        .filter(c -> parseNumeric(c) != null)
+                        .min(java.util.Comparator.comparingDouble(
+                                c -> Math.abs(parseNumeric(c) - avg)))
+                        .orElse(null);
             }
             boolean consensus = distribution.size() == 1 && !distribution.isEmpty();
-            return new StatsDto(average, median, consensus, distribution);
+            return new StatsDto(average, median, consensus, distribution, suggested);
         }
 
         private static Double parseNumeric(String v) {
